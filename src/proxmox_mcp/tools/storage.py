@@ -20,12 +20,33 @@ class StorageTools(ProxmoxTool):
         """
         try:
             result = self.proxmox.storage.get()
-            storage = [{
-                "storage": storage["storage"],
-                "type": storage["type"],
-                "content": storage.get("content", []),
-                "enabled": storage.get("enabled", True)
-            } for storage in result]
-            return self._format_response(storage)
+            storage = []
+            
+            for store in result:
+                # Get detailed storage info including usage
+                try:
+                    status = self.proxmox.nodes(store.get("node", "localhost")).storage(store["storage"]).status.get()
+                    storage.append({
+                        "storage": store["storage"],
+                        "type": store["type"],
+                        "content": store.get("content", []),
+                        "status": "online" if store.get("enabled", True) else "offline",
+                        "used": status.get("used", 0),
+                        "total": status.get("total", 0),
+                        "available": status.get("avail", 0)
+                    })
+                except Exception:
+                    # If detailed status fails, add basic info
+                    storage.append({
+                        "storage": store["storage"],
+                        "type": store["type"],
+                        "content": store.get("content", []),
+                        "status": "online" if store.get("enabled", True) else "offline",
+                        "used": 0,
+                        "total": 0,
+                        "available": 0
+                    })
+                    
+            return self._format_response(storage, "storage")
         except Exception as e:
             self._handle_error("get storage", e)

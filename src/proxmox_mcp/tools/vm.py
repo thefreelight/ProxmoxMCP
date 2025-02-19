@@ -36,9 +36,14 @@ class VMTools(ProxmoxTool):
                     "vmid": vm["vmid"],
                     "name": vm["name"],
                     "status": vm["status"],
-                    "node": node["node"]
+                    "node": node["node"],
+                    "cpu": vm.get("cpu", 0),
+                    "memory": {
+                        "used": vm.get("mem", 0),
+                        "total": vm.get("maxmem", 0)
+                    }
                 } for vm in vms])
-            return self._format_response(result)
+            return self._format_response(result, "vms")
         except Exception as e:
             self._handle_error("get VMs", e)
 
@@ -59,6 +64,14 @@ class VMTools(ProxmoxTool):
         """
         try:
             result = await self.console_manager.execute_command(node, vmid, command)
-            return self._format_response(result)
+            # Use the command output formatter from ProxmoxFormatters
+            from ..formatting import ProxmoxFormatters
+            formatted = ProxmoxFormatters.format_command_output(
+                success=result["success"],
+                command=command,
+                output=result["output"],
+                error=result.get("error")
+            )
+            return [Content(type="text", text=formatted)]
         except Exception as e:
             self._handle_error(f"execute command on VM {vmid}", e)
