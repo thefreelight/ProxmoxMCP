@@ -26,6 +26,6 @@ class ClusterTools(ProxmoxTool):
                 "nodes": len([node for node in result if node.get("type") == "node"]),
                 "resources": [res for res in result if res.get("type") == "resource"]
             }
-            return self._format_response(status)
+            return self._format_response(status, "cluster")
         except Exception as e:
             self._handle_error("get cluster status", e)

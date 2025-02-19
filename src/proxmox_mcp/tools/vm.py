@@ -31,18 +31,37 @@ class VMTools(ProxmoxTool):
         try:
             result = []
             for node in self.proxmox.nodes.get():
-                vms = self.proxmox.nodes(node["node"]).qemu.get()
-                result.extend([{
-                    "vmid": vm["vmid"],
-                    "name": vm["name"],
-                    "status": vm["status"],
-                    "node": node["node"],
-                    "cpu": vm.get("cpu", 0),
-                    "memory": {
-                        "used": vm.get("mem", 0),
-                        "total": vm.get("maxmem", 0)
-                    }
-                } for vm in vms])
+                node_name = node["node"]
+                vms = self.proxmox.nodes(node_name).qemu.get()
+                for vm in vms:
+                    vmid = vm["vmid"]
+                    # Get VM config for CPU cores
+                    try:
+                        config = self.proxmox.nodes(node_name).qemu(vmid).config.get()
+                        result.append({
+                            "vmid": vmid,
+                            "name": vm["name"],
+                            "status": vm["status"],
+                            "node": node_name,
+                            "cpus": config.get("cores", "N/A"),
+                            "memory": {
+                                "used": vm.get("mem", 0),
+                                "total": vm.get("maxmem", 0)
+                            }
+                        })
+                    except Exception:
+                        # Fallback if can't get config
+                        result.append({
+                            "vmid": vmid,
+                            "name": vm["name"],
+                            "status": vm["status"],
+                            "node": node_name,
+                            "cpus": "N/A",
+                            "memory": {
+                                "used": vm.get("mem", 0),
+                                "total": vm.get("maxmem", 0)
+                            }
+                        })
             return self._format_response(result, "vms")
         except Exception as e:
             self._handle_error("get VMs", e)

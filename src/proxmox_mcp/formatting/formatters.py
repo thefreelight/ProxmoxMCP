@@ -138,21 +138,20 @@ class ProxmoxFormatters:
         Returns:
             Formatted command output string
         """
-        status_emoji = ProxmoxTheme.ACTIONS['success' if success else 'error']
-        cmd_emoji = ProxmoxTheme.ACTIONS['command']
-        
         result = [
-            ProxmoxFormatters.format_section_header("Console Command Result"),
-            f"{status_emoji} Status: {ProxmoxColors.colorize('SUCCESS' if success else 'FAILED', ProxmoxColors.GREEN if success else ProxmoxColors.RED)}",
-            f"{cmd_emoji} Command: {command}",
-            "\n📤 Output:",
+            f"{ProxmoxTheme.ACTIONS['command']} Console Command Result",
+            f"  • Status: {'SUCCESS' if success else 'FAILED'}",
+            f"  • Command: {command}",
+            "",
+            "Output:",
             output.strip()
         ]
         
         if error:
             result.extend([
-                "\n❌ Error:",
-                ProxmoxColors.colorize(error.strip(), ProxmoxColors.RED)
+                "",
+                "Error:",
+                error.strip()
             ])
             
         return "\n".join(result)
