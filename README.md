@@ -12,9 +12,7 @@ A Python-based Model Context Protocol (MCP) server for interacting with Proxmox 
 - Type-safe implementation with Pydantic
 - Full integration with Claude Desktop
 
-## Installation for Cline Users
-
-If you're using this MCP server with Cline, follow these steps for installation:
+## Installation
 
 1. Create a directory for your MCP servers (if you haven't already):
    ```bash
@@ -31,7 +29,7 @@ If you're using this MCP server with Cline, follow these steps for installation:
    pip install -e "proxmox-mcp[dev]"
    ```
 
-3. Create your configuration:
+3. Create and verify your configuration:
    ```bash
    # Create config directory
    mkdir proxmox-config
@@ -42,7 +40,7 @@ If you're using this MCP server with Cline, follow these steps for installation:
    ```json
    {
        "proxmox": {
-           "host": "your-proxmox-host",
+           "host": "your-proxmox-host",  # Must be a valid hostname or IP
            "port": 8006,
            "verify_ssl": true,
            "service": "PVE"
@@ -60,15 +58,16 @@ If you're using this MCP server with Cline, follow these steps for installation:
    }
    ```
 
-4. Install in Claude Desktop:
-   ```bash
-   cd ~/Documents/Cline/MCP
-   mcp install proxmox-mcp/src/proxmox_mcp/server.py \
-     --name "Proxmox Manager" \
-     -v PROXMOX_MCP_CONFIG=./proxmox-config/config.json
-   ```
+   Important: Verify your configuration:
+   - Ensure the config file exists at the specified path
+   - The `host` field must be properly set to your Proxmox server's hostname or IP address
+   - You can validate your config by running:
+     ```bash
+     python3 -c "import json; print(json.load(open('config.json'))['proxmox']['host'])"
+     ```
+   - This should print your Proxmox host address. If it prints an empty string or raises an error, your config needs to be fixed.
 
-5. The server will now be available in Cline with these tools:
+4. The server provides these tools:
    - `get_nodes`: List all nodes in the cluster
    - `get_node_status`: Get detailed status of a node
    - `get_vms`: List all VMs

@@ -98,12 +98,25 @@ class ProxmoxMCPServer:
 
     def _setup_logging(self) -> None:
         """Configure logging based on settings."""
+        import os
+        
+        # Convert relative path to absolute
+        log_file = self.config.logging.file
+        if log_file and not os.path.isabs(log_file):
+            log_file = os.path.join(os.getcwd(), log_file)
+            
+        # Configure root logger
         logging.basicConfig(
             level=getattr(logging, self.config.logging.level.upper()),
             format=self.config.logging.format,
-            filename=self.config.logging.file,
+            handlers=[
+                logging.FileHandler(log_file),
+                logging.StreamHandler()  # Also log to console
+            ]
         )
+        
         self.logger = logging.getLogger("proxmox-mcp")
+        self.logger.info(f"Logging initialized. File: {log_file}, Level: {self.config.logging.level}")
 
     def _setup_proxmox(self) -> ProxmoxAPI:
         """Initialize Proxmox API connection."""
