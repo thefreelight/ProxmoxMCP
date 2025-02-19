@@ -11,8 +11,38 @@ from mcp.server.fastmcp.tools.base import Tool as BaseTool
 from mcp.types import CallToolResult as Response, TextContent as Content
 from proxmoxer import ProxmoxAPI
 from pydantic import BaseModel
+from urllib.parse import urljoin
 
-from .tools.vm_console import VMConsoleManager
+class CustomProxmoxAPI(ProxmoxAPI):
+    def __init__(self, host, **kwargs):
+        self._host = host  # Store the host
+        super().__init__(host, **kwargs)
+    
+    def get(self, *args, **kwargs):
+        try:
+            # Always ensure base_url is set correctly
+            self._store['base_url'] = f'https://{self._host}:{self._store.get("port", "8006")}/api2/json'
+            print(f"Using base_url: {self._store['base_url']}")
+            
+            # Handle both dotted and string notation
+            if args and isinstance(args[0], str):
+                path = args[0]
+                print(f"Making request to path: {path}")
+                full_url = f"{self._store['base_url']}/{path}"
+                print(f"Full URL: {full_url}")
+                return self._backend.get(full_url)
+            
+            print("Using dotted notation")
+            return super().get(*args, **kwargs)
+        except Exception as e:
+            print(f"Error in CustomProxmoxAPI.get: {e}")
+            raise
+
+# Import from the same directory
+import sys
+import os.path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tools.vm_console import VMConsoleManager
 
 class ProxmoxConfig(BaseModel):
     host: str
@@ -46,31 +76,25 @@ class ProxmoxMCPServer:
 
     def _load_config(self, config_path: Optional[str]) -> Config:
         """Load configuration from file or environment variables."""
-        if config_path:
+        print(f"Loading config from path: {config_path}")
+        if not config_path:
+            raise ValueError("PROXMOX_MCP_CONFIG environment variable must be set")
+
+        try:
             with open(config_path) as f:
                 config_data = json.load(f)
-        else:
-            # Load from environment variables
-            config_data = {
-                "proxmox": {
-                    "host": os.getenv("PROXMOX_HOST", ""),
-                    "port": int(os.getenv("PROXMOX_PORT", "8006")),
-                    "verify_ssl": os.getenv("PROXMOX_VERIFY_SSL", "true").lower() == "true",
-                    "service": os.getenv("PROXMOX_SERVICE", "PVE"),
-                },
-                "auth": {
-                    "user": os.getenv("PROXMOX_USER", ""),
-                    "token_name": os.getenv("PROXMOX_TOKEN_NAME", ""),
-                    "token_value": os.getenv("PROXMOX_TOKEN_VALUE", ""),
-                },
-                "logging": {
-                    "level": os.getenv("LOG_LEVEL", "INFO"),
-                    "format": os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
-                    "file": os.getenv("LOG_FILE"),
-                },
-            }
-
-        return Config(**config_data)
+                print(f"Raw config data: {config_data}")
+                
+                # Ensure host is not empty
+                if not config_data.get('proxmox', {}).get('host'):
+                    raise ValueError("Proxmox host cannot be empty")
+                    
+                print(f"Using host: {config_data['proxmox']['host']}")
+                return Config(**config_data)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in config file: {e}")
+        except Exception as e:
+            raise ValueError(f"Failed to load config: {e}")
 
     def _setup_logging(self) -> None:
         """Configure logging based on settings."""
@@ -84,15 +108,35 @@ class ProxmoxMCPServer:
     def _setup_proxmox(self) -> ProxmoxAPI:
         """Initialize Proxmox API connection."""
         try:
-            return ProxmoxAPI(
-                host=self.config.proxmox.host,
-                port=self.config.proxmox.port,
-                user=self.config.auth.user,
-                token_name=self.config.auth.token_name,
-                token_value=self.config.auth.token_value,
-                verify_ssl=self.config.proxmox.verify_ssl,
-                service=self.config.proxmox.service,
-            )
+            self.logger.info(f"Connecting to Proxmox with config: {self.config.proxmox}")
+            print(f"Initializing ProxmoxAPI with host={self.config.proxmox.host}, port={self.config.proxmox.port}")
+            
+            print(f"Creating ProxmoxAPI with host={self.config.proxmox.host}")
+            
+            # Store the working configuration for reuse
+            self.proxmox_config = {
+                'host': self.config.proxmox.host,
+                'user': self.config.auth.user,
+                'token_name': self.config.auth.token_name,
+                'token_value': self.config.auth.token_value,
+                'verify_ssl': self.config.proxmox.verify_ssl,
+                'service': 'PVE'
+            }
+            
+            # Create CustomProxmoxAPI instance with stored config
+            api = CustomProxmoxAPI(**self.proxmox_config)
+            print("ProxmoxAPI initialized successfully")
+            # Test the connection by making a simple request
+            print("Testing API connection...")
+            test_result = api.version.get()
+            print(f"Connection test result: {test_result}")
+            
+            # Test nodes endpoint specifically
+            print("Testing nodes endpoint...")
+            nodes_result = api.nodes.get()
+            print(f"Nodes test result: {nodes_result}")
+            
+            return api
         except Exception as e:
             self.logger.error(f"Failed to connect to Proxmox: {e}")
             raise
@@ -104,7 +148,10 @@ class ProxmoxMCPServer:
         def get_nodes() -> List[Content]:
             """List all nodes in the Proxmox cluster."""
             try:
+                print(f"Using ProxmoxAPI instance with config: {self.proxmox_config}")
+                print("Getting nodes using dotted notation...")
                 result = self.proxmox.nodes.get()
+                print(f"Raw nodes result: {result}")
                 nodes = [{"node": node["node"], "status": node["status"]} for node in result]
                 return [Content(type="text", text=json.dumps(nodes))]
             except Exception as e:
@@ -198,26 +245,40 @@ class ProxmoxMCPServer:
                 self.logger.error(f"Failed to execute VM command: {e}")
                 raise
 
-    async def run(self) -> None:
+    def start(self) -> None:
         """Start the MCP server."""
+        import anyio
+        import signal
+        import sys
+
+        def signal_handler(signum, frame):
+            print("Received signal to shutdown...")
+            sys.exit(0)
+
+        # Set up signal handlers
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+
         try:
-            await self.mcp.run()
-            self.logger.info("Proxmox MCP server running")
+            print("Starting MCP server...")
+            anyio.run(self.mcp.run_stdio_async)
         except Exception as e:
+            print(f"Server error: {e}")
             self.logger.error(f"Server error: {e}")
-            raise
-
-def main():
-    """Entry point for the MCP server."""
-    import asyncio
-
-    config_path = os.getenv("PROXMOX_MCP_CONFIG")
-    server = ProxmoxMCPServer(config_path)
-
-    try:
-        asyncio.run(server.run())
-    except KeyboardInterrupt:
-        pass
+            sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    config_path = os.getenv("PROXMOX_MCP_CONFIG")
+    if not config_path:
+        print("PROXMOX_MCP_CONFIG environment variable must be set")
+        sys.exit(1)
+    
+    try:
+        server = ProxmoxMCPServer(config_path)
+        server.start()
+    except KeyboardInterrupt:
+        print("\nShutting down gracefully...")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
