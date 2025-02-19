@@ -1,5 +1,18 @@
 """
 Main server implementation for Proxmox MCP.
+
+This module implements the core MCP server for Proxmox integration, providing:
+- Configuration loading and validation
+- Logging setup
+- Proxmox API connection management
+- MCP tool registration and routing
+- Signal handling for graceful shutdown
+
+The server exposes a set of tools for managing Proxmox resources including:
+- Node management
+- VM operations
+- Storage management
+- Cluster status monitoring
 """
 import logging
 import os
@@ -56,7 +69,17 @@ class ProxmoxMCPServer:
         self._setup_tools()
 
     def _setup_tools(self) -> None:
-        """Register MCP tools."""
+        """Register MCP tools with the server.
+        
+        Initializes and registers all available tools with the MCP server:
+        - Node management tools (list nodes, get status)
+        - VM operation tools (list VMs, execute commands)
+        - Storage management tools (list storage)
+        - Cluster tools (get cluster status)
+        
+        Each tool is registered with appropriate descriptions and parameter
+        validation using Pydantic models.
+        """
         
         # Node tools
         @self.mcp.tool(description=GET_NODES_DESC)
@@ -93,7 +116,15 @@ class ProxmoxMCPServer:
             return self.cluster_tools.get_cluster_status()
 
     def start(self) -> None:
-        """Start the MCP server."""
+        """Start the MCP server.
+        
+        Initializes the server with:
+        - Signal handlers for graceful shutdown (SIGINT, SIGTERM)
+        - Async runtime for handling concurrent requests
+        - Error handling and logging
+        
+        The server runs until terminated by a signal or fatal error.
+        """
         import anyio
 
         def signal_handler(signum, frame):

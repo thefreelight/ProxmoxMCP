@@ -1,5 +1,17 @@
 """
 VM-related tools for Proxmox MCP.
+
+This module provides tools for managing and interacting with Proxmox VMs:
+- Listing all VMs across the cluster with their status
+- Retrieving detailed VM information including:
+  * Resource allocation (CPU, memory)
+  * Runtime status
+  * Node placement
+- Executing commands within VMs via QEMU guest agent
+- Handling VM console operations
+
+The tools implement fallback mechanisms for scenarios where
+detailed VM information might be temporarily unavailable.
 """
 from typing import List
 from mcp.types import TextContent as Content
@@ -8,7 +20,18 @@ from .definitions import GET_VMS_DESC, EXECUTE_VM_COMMAND_DESC
 from .console.manager import VMConsoleManager
 
 class VMTools(ProxmoxTool):
-    """Tools for managing Proxmox VMs."""
+    """Tools for managing Proxmox VMs.
+    
+    Provides functionality for:
+    - Retrieving cluster-wide VM information
+    - Getting detailed VM status and configuration
+    - Executing commands within VMs
+    - Managing VM console operations
+    
+    Implements fallback mechanisms for scenarios where detailed
+    VM information might be temporarily unavailable. Integrates
+    with QEMU guest agent for VM command execution.
+    """
 
     def __init__(self, proxmox_api):
         """Initialize VM tools.
@@ -20,13 +43,35 @@ class VMTools(ProxmoxTool):
         self.console_manager = VMConsoleManager(proxmox_api)
 
     def get_vms(self) -> List[Content]:
-        """List all virtual machines across the cluster.
+        """List all virtual machines across the cluster with detailed status.
+
+        Retrieves comprehensive information for each VM including:
+        - Basic identification (ID, name)
+        - Runtime status (running, stopped)
+        - Resource allocation and usage:
+          * CPU cores
+          * Memory allocation and usage
+        - Node placement
+        
+        Implements a fallback mechanism that returns basic information
+        if detailed configuration retrieval fails for any VM.
 
         Returns:
-            List of Content objects containing VM information
+            List of Content objects containing formatted VM information:
+            {
+                "vmid": "100",
+                "name": "vm-name",
+                "status": "running/stopped",
+                "node": "node-name",
+                "cpus": core_count,
+                "memory": {
+                    "used": bytes,
+                    "total": bytes
+                }
+            }
 
         Raises:
-            RuntimeError: If the operation fails
+            RuntimeError: If the cluster-wide VM query fails
         """
         try:
             result = []
@@ -69,17 +114,28 @@ class VMTools(ProxmoxTool):
     async def execute_command(self, node: str, vmid: str, command: str) -> List[Content]:
         """Execute a command in a VM via QEMU guest agent.
 
+        Uses the QEMU guest agent to execute commands within a running VM.
+        Requires:
+        - VM must be running
+        - QEMU guest agent must be installed and running in the VM
+        - Command execution permissions must be enabled
+
         Args:
-            node: Host node name
-            vmid: VM ID number
-            command: Shell command to run
+            node: Host node name (e.g., 'pve1', 'proxmox-node2')
+            vmid: VM ID number (e.g., '100', '101')
+            command: Shell command to run (e.g., 'uname -a', 'systemctl status nginx')
 
         Returns:
-            List of Content objects containing command output
+            List of Content objects containing formatted command output:
+            {
+                "success": true/false,
+                "output": "command output",
+                "error": "error message if any"
+            }
 
         Raises:
-            ValueError: If VM is not found or not running
-            RuntimeError: If command execution fails
+            ValueError: If VM is not found, not running, or guest agent is not available
+            RuntimeError: If command execution fails due to permissions or other issues
         """
         try:
             result = await self.console_manager.execute_command(node, vmid, command)

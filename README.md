@@ -1,20 +1,28 @@
-# Proxmox MCP Server
+# 🚀 Proxmox MCP Server
 
 A Python-based Model Context Protocol (MCP) server for interacting with Proxmox hypervisors, providing a clean interface for managing nodes, VMs, and containers.
 
-## Features
+## 🏗️ Built With
 
-- Built with the official MCP SDK
-- Secure token-based authentication with Proxmox
-- Tools for managing nodes, VMs, and containers
-- VM console command execution
-- Configurable logging system
-- Type-safe implementation with Pydantic
-- Full integration with Claude Desktop
+- [Cline](https://github.com/cline/cline) - Autonomous coding agent - Go faster with Cline.
+- [Proxmoxer](https://github.com/proxmoxer/proxmoxer) - Python wrapper for Proxmox API
+- [MCP SDK](https://github.com/modelcontextprotocol/sdk) - Model Context Protocol SDK
+- [Pydantic](https://docs.pydantic.dev/) - Data validation using Python type annotations
 
-## Installation
+## ✨ Features
 
-1. Create a directory for your MCP servers (if you haven't already):
+- 🛠️ Built with the official MCP SDK
+- 🔒 Secure token-based authentication with Proxmox
+- 🖥️ Tools for managing nodes and VMs
+- 💻 VM console command execution
+- 📝 Configurable logging system
+- ✅ Type-safe implementation with Pydantic
+- 🤖 Full integration with Claude Desktop
+- 🎨 Rich output formatting with customizable themes
+
+## 📦 Installation
+
+1. Create a directory for your [Cline](https://github.com/cline/cline) MCP servers (if you haven't already):
    ```bash
    mkdir -p ~/Documents/Cline/MCP
    cd ~/Documents/Cline/MCP
@@ -23,7 +31,7 @@ A Python-based Model Context Protocol (MCP) server for interacting with Proxmox 
 2. Clone and install the package:
    ```bash
    # Clone the repository
-   git clone https://github.com/yourusername/proxmox-mcp.git
+   git clone https://github.com/canvrno/ProxmoxMCP.git
 
    # Install in development mode with dependencies
    pip install -e "proxmox-mcp[dev]"
@@ -31,7 +39,8 @@ A Python-based Model Context Protocol (MCP) server for interacting with Proxmox 
 
 3. Create and verify your configuration:
    ```bash
-   # Create config directory
+   # Create config directory in the project root
+   cd ProxmoxMCP
    mkdir proxmox-config
    cd proxmox-config
    ```
@@ -71,12 +80,14 @@ A Python-based Model Context Protocol (MCP) server for interacting with Proxmox 
    - `get_nodes`: List all nodes in the cluster
    - `get_node_status`: Get detailed status of a node
    - `get_vms`: List all VMs
-   - `get_containers`: List all LXC containers
    - `get_storage`: List available storage
    - `get_cluster_status`: Get cluster status
    - `execute_vm_command`: Run commands in VM consoles
 
-## Development Setup
+Requirements:
+- Python 3.9 or higher
+
+## 🛠️ Development Setup
 
 1. Install UV:
    ```bash
@@ -85,7 +96,7 @@ A Python-based Model Context Protocol (MCP) server for interacting with Proxmox 
 
 2. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/proxmox-mcp.git
+   git clone https://github.com/canvrno/ProxmoxMCP.git
    cd proxmox-mcp
    ```
 
@@ -108,7 +119,7 @@ A Python-based Model Context Protocol (MCP) server for interacting with Proxmox 
    uv pip install -e .
    ```
 
-## Configuration
+## ⚙️ Configuration
 
 ### Proxmox API Token Setup
 1. Log into your Proxmox web interface
@@ -168,7 +179,7 @@ LOG_FORMAT=%(asctime)s...         # Default: standard format
 LOG_FILE=proxmox_mcp.log         # Default: None (stdout)
 ```
 
-## Available Tools
+## 🔧 Available Tools
 
 The server provides the following MCP tools for interacting with Proxmox:
 
@@ -177,17 +188,32 @@ Lists all nodes in the Proxmox cluster.
 
 - Parameters: None
 - Example Response:
-  ```json
-  [
-    {
-      "node": "pve1",
-      "status": "online"
-    },
-    {
-      "node": "pve2",
-      "status": "online"
-    }
-  ]
+  ```
+  🖥️ Proxmox Nodes
+
+  🖥️ pve-compute-01
+    • Status: ONLINE
+    • Uptime: ⏳ 156d 12h
+    • CPU Cores: 64
+    • Memory: 186.5 GB / 512.0 GB (36.4%)
+
+  🖥️ pve-compute-02
+    • Status: ONLINE
+    • Uptime: ⏳ 156d 11h
+    • CPU Cores: 64
+    • Memory: 201.3 GB / 512.0 GB (39.3%)
+
+  🖥️ pve-storage-01
+    • Status: ONLINE
+    • Uptime: ⏳ 156d 12h
+    • CPU Cores: 32
+    • Memory: 89.2 GB / 256.0 GB (34.8%)
+
+  🖥️ pve-storage-02
+    • Status: ONLINE
+    • Uptime: ⏳ 156d 12h
+    • CPU Cores: 32
+    • Memory: 92.8 GB / 256.0 GB (36.2%)
   ```
 
 ### get_node_status
@@ -196,17 +222,15 @@ Get detailed status of a specific node.
 - Parameters:
   - `node` (string, required): Name of the node
 - Example Response:
-  ```json
-  {
-    "status": "running",
-    "uptime": 1234567,
-    "cpu": 0.12,
-    "memory": {
-      "total": 16777216,
-      "used": 8388608,
-      "free": 8388608
-    }
-  }
+  ```
+  🖥️ Node: pve-compute-01
+    • Status: ONLINE
+    • Uptime: ⏳ 156d 12h
+    • CPU Usage: 42.3%
+    • CPU Cores: 64 (AMD EPYC 7763)
+    • Memory: 186.5 GB / 512.0 GB (36.4%)
+    • Network: ⬆️ 12.8 GB/s ⬇️ 9.2 GB/s
+    • Temperature: 38°C
   ```
 
 ### get_vms
@@ -214,43 +238,56 @@ List all VMs across the cluster.
 
 - Parameters: None
 - Example Response:
-  ```json
-  [
-    {
-      "vmid": "100",
-      "name": "web-server",
-      "status": "running",
-      "node": "pve1"
-    },
-    {
-      "vmid": "101",
-      "name": "database",
-      "status": "stopped",
-      "node": "pve2"
-    }
-  ]
   ```
+  🗃️ Virtual Machines
 
-### get_containers
-List all LXC containers.
+  🗃️ prod-db-master (ID: 100)
+    • Status: RUNNING
+    • Node: pve-compute-01
+    • CPU Cores: 16
+    • Memory: 92.3 GB / 128.0 GB (72.1%)
 
-- Parameters: None
-- Example Response:
-  ```json
-  [
-    {
-      "vmid": "200",
-      "name": "docker-host",
-      "status": "running",
-      "node": "pve1"
-    },
-    {
-      "vmid": "201",
-      "name": "nginx-proxy",
-      "status": "running",
-      "node": "pve1"
-    }
-  ]
+  🗃️ prod-db-replica-01 (ID: 101)
+    • Status: RUNNING
+    • Node: pve-compute-02
+    • CPU Cores: 16
+    • Memory: 86.5 GB / 128.0 GB (67.6%)
+
+  🗃️ prod-web-01 (ID: 102)
+    • Status: RUNNING
+    • Node: pve-compute-01
+    • CPU Cores: 8
+    • Memory: 12.8 GB / 32.0 GB (40.0%)
+
+  🗃️ prod-web-02 (ID: 103)
+    • Status: RUNNING
+    • Node: pve-compute-02
+    • CPU Cores: 8
+    • Memory: 13.2 GB / 32.0 GB (41.3%)
+
+  🗃️ prod-cache-01 (ID: 104)
+    • Status: RUNNING
+    • Node: pve-compute-01
+    • CPU Cores: 4
+    • Memory: 24.6 GB / 64.0 GB (38.4%)
+
+  🗃️ prod-cache-02 (ID: 105)
+    • Status: RUNNING
+    • Node: pve-compute-02
+    • CPU Cores: 4
+    • Memory: 25.1 GB / 64.0 GB (39.2%)
+
+  🗃️ staging-env (ID: 106)
+    • Status: RUNNING
+    • Node: pve-compute-02
+    • CPU Cores: 32
+    • Memory: 48.2 GB / 128.0 GB (37.7%)
+
+  🗃️ dev-env (ID: 107)
+    • Status: STOPPED
+    • Node: pve-compute-01
+    • CPU Cores: 16
+    • Memory: 0.0 GB / 64.0 GB (0.0%)
   ```
 
 ### get_storage
@@ -258,17 +295,32 @@ List available storage.
 
 - Parameters: None
 - Example Response:
-  ```json
-  [
-    {
-      "storage": "local",
-      "type": "dir"
-    },
-    {
-      "storage": "ceph-pool",
-      "type": "rbd"
-    }
-  ]
+  ```
+  💾 Storage Pools
+
+  💾 ceph-prod
+    • Status: ONLINE
+    • Type: rbd
+    • Usage: 12.8 TB / 20.0 TB (64.0%)
+    • IOPS: ⬆️ 15.2k ⬇️ 12.8k
+
+  💾 ceph-backup
+    • Status: ONLINE
+    • Type: rbd
+    • Usage: 28.6 TB / 40.0 TB (71.5%)
+    • IOPS: ⬆️ 8.4k ⬇️ 6.2k
+
+  💾 nvme-cache
+    • Status: ONLINE
+    • Type: lvmthin
+    • Usage: 856.2 GB / 2.0 TB (42.8%)
+    • IOPS: ⬆️ 125.6k ⬇️ 98.4k
+
+  💾 local-zfs
+    • Status: ONLINE
+    • Type: zfspool
+    • Usage: 3.2 TB / 8.0 TB (40.0%)
+    • IOPS: ⬆️ 42.8k ⬇️ 35.6k
   ```
 
 ### get_cluster_status
@@ -276,13 +328,24 @@ Get overall cluster status.
 
 - Parameters: None
 - Example Response:
-  ```json
-  {
-    "quorate": true,
-    "nodes": 2,
-    "version": "7.4-15",
-    "cluster_name": "proxmox-cluster"
-  }
+  ```
+  ⚙️ Proxmox Cluster
+
+    • Name: enterprise-cloud
+    • Status: HEALTHY
+    • Quorum: OK
+    • Nodes: 4 ONLINE
+    • Version: 8.1.3
+    • HA Status: ACTIVE
+    • Resources:
+      - Total CPU Cores: 192
+      - Total Memory: 1536 GB
+      - Total Storage: 70 TB
+    • Workload:
+      - Running VMs: 7
+      - Total VMs: 8
+      - Average CPU Usage: 38.6%
+      - Average Memory Usage: 42.8%
   ```
 
 ### execute_vm_command
@@ -293,13 +356,26 @@ Execute a command in a VM's console using QEMU Guest Agent.
   - `vmid` (string, required): ID of the VM
   - `command` (string, required): Command to execute
 - Example Response:
-  ```json
-  {
-    "success": true,
-    "output": "command output here",
-    "error": "",
-    "exit_code": 0
-  }
+  ```
+  🔧 Console Command Result
+    • Status: SUCCESS
+    • Command: systemctl status nginx
+    • Node: pve-compute-01
+    • VM: prod-web-01 (ID: 102)
+
+  Output:
+  ● nginx.service - A high performance web server and a reverse proxy server
+     Loaded: loaded (/lib/systemd/system/nginx.service; enabled; vendor preset: enabled)
+     Active: active (running) since Tue 2025-02-18 15:23:45 UTC; 2 months 3 days ago
+       Docs: man:nginx(8)
+   Main PID: 1234 (nginx)
+      Tasks: 64
+     Memory: 256.2M
+        CPU: 42.6h
+     CGroup: /system.slice/nginx.service
+             ├─1234 "nginx: master process /usr/sbin/nginx -g daemon on; master_pr..."
+             ├─1235 "nginx: worker process" "" "" "" "" "" "" "" "" "" "" "" "" ""
+             └─1236 "nginx: worker process" "" "" "" "" "" "" "" "" "" "" "" "" ""
   ```
 - Requirements:
   - VM must be running
@@ -311,7 +387,7 @@ Execute a command in a VM's console using QEMU Guest Agent.
   - Returns error if command execution fails
   - Includes command output even if command returns non-zero exit code
 
-## Running the Server
+## 🚀 Running the Server
 
 ### Development Mode
 For testing and development, use the MCP development server:
@@ -340,7 +416,7 @@ Run the server directly:
 python -m proxmox_mcp.server
 ```
 
-## Error Handling
+## ⚠️ Error Handling
 
 The server implements comprehensive error handling:
 
@@ -351,7 +427,7 @@ The server implements comprehensive error handling:
 
 All errors are properly logged and returned with descriptive messages.
 
-## Logging
+## 📝 Logging
 
 Logging can be configured through the config file or environment variables:
 
@@ -366,22 +442,25 @@ Example log output:
 2025-02-18 19:15:25,123 - proxmox-mcp - DEBUG - Tool called: get_nodes
 ```
 
-## Development
+## 👨‍💻 Development
 
 - Run tests: `pytest`
 - Format code: `black .`
 - Type checking: `mypy .`
 - Lint: `ruff .`
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 proxmox-mcp/
 ├── src/
 │   └── proxmox_mcp/
 │       ├── server.py          # Main MCP server implementation
+│       ├── config/            # Configuration handling
+│       ├── core/              # Core functionality
+│       ├── formatting/        # Output formatting and themes
 │       ├── tools/             # Tool implementations
-│       │   └── vm_console.py  # VM console operations
+│       │   └── console/       # VM console operations
 │       └── utils/             # Utilities (auth, logging)
 ├── tests/                     # Test suite
 ├── config/
@@ -392,6 +471,6 @@ proxmox-mcp/
 └── LICENSE                   # MIT License
 ```
 
-## License
+## 📄 License
 
 MIT License

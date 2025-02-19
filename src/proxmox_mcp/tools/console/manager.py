@@ -1,12 +1,37 @@
 """
 Module for managing VM console operations.
+
+This module provides functionality for interacting with VM consoles:
+- Executing commands within VMs via QEMU guest agent
+- Handling command execution lifecycle
+- Managing command output and status
+- Error handling and logging
+
+The module implements a robust command execution system with:
+- VM state verification
+- Asynchronous command execution
+- Detailed status tracking
+- Comprehensive error handling
 """
 
 import logging
 from typing import Dict, Any
 
 class VMConsoleManager:
-    """Manager class for VM console operations."""
+    """Manager class for VM console operations.
+    
+    Provides functionality for:
+    - Executing commands in VM consoles
+    - Managing command execution lifecycle
+    - Handling command output and errors
+    - Monitoring execution status
+    
+    Uses QEMU guest agent for reliable command execution with:
+    - VM state verification before execution
+    - Asynchronous command processing
+    - Detailed output capture
+    - Comprehensive error handling
+    """
 
     def __init__(self, proxmox_api):
         """Initialize the VM console manager.
@@ -18,19 +43,47 @@ class VMConsoleManager:
         self.logger = logging.getLogger("proxmox-mcp.vm-console")
 
     async def execute_command(self, node: str, vmid: str, command: str) -> Dict[str, Any]:
-        """Execute a command in a VM's console.
+        """Execute a command in a VM's console via QEMU guest agent.
+
+        Implements a two-phase command execution process:
+        1. Command Initiation:
+           - Verifies VM exists and is running
+           - Initiates command execution via guest agent
+           - Captures command PID for tracking
+        
+        2. Result Collection:
+           - Monitors command execution status
+           - Captures command output and errors
+           - Handles completion status
+        
+        Requirements:
+        - VM must be running
+        - QEMU guest agent must be installed and active
+        - Command execution permissions must be enabled
 
         Args:
-            node: Name of the node where VM is running
-            vmid: ID of the VM
-            command: Command to execute
+            node: Name of the node where VM is running (e.g., 'pve1')
+            vmid: ID of the VM to execute command in (e.g., '100')
+            command: Shell command to execute in the VM
 
         Returns:
-            Dictionary containing command output and status
+            Dictionary containing command execution results:
+            {
+                "success": true/false,
+                "output": "command output",
+                "error": "error output if any",
+                "exit_code": command_exit_code
+            }
 
         Raises:
-            ValueError: If VM is not found or not running
-            RuntimeError: If command execution fails
+            ValueError: If:
+                     - VM is not found
+                     - VM is not running
+                     - Guest agent is not available
+            RuntimeError: If:
+                       - Command execution fails
+                       - Unable to get command status
+                       - API communication errors occur
         """
         try:
             # Verify VM exists and is running

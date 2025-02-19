@@ -1,5 +1,18 @@
 """
 Logging configuration for the Proxmox MCP server.
+
+This module handles logging setup and configuration:
+- File and console logging handlers
+- Log level management
+- Format customization
+- Handler lifecycle management
+
+The logging system supports:
+- Configurable log levels
+- File-based logging with path resolution
+- Console logging for errors
+- Custom format strings
+- Multiple handler management
 """
 import logging
 import os
@@ -7,13 +20,39 @@ from typing import Optional
 from ..config.models import LoggingConfig
 
 def setup_logging(config: LoggingConfig) -> logging.Logger:
-    """Configure logging based on settings.
+    """Configure and initialize logging system.
 
+    Sets up a comprehensive logging system with:
+    - File logging (if configured):
+      * Handles relative/absolute paths
+      * Uses configured log level
+      * Applies custom format
+    
+    - Console logging:
+      * Always enabled for errors
+      * Ensures critical issues are visible
+    
+    - Handler Management:
+      * Removes existing handlers
+      * Configures new handlers
+      * Sets up formatters
+    
     Args:
-        config: Logging configuration
+        config: Logging configuration containing:
+               - Log level (e.g., "INFO", "DEBUG")
+               - Format string
+               - Optional log file path
 
     Returns:
-        Configured logger instance
+        Configured logger instance for "proxmox-mcp"
+        with appropriate handlers and formatting
+
+    Example config:
+        {
+            "level": "INFO",
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            "file": "/path/to/log/file.log"  # Optional
+        }
     """
     # Convert relative path to absolute
     log_file = config.file

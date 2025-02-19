@@ -1,5 +1,16 @@
 """
 Storage-related tools for Proxmox MCP.
+
+This module provides tools for managing and monitoring Proxmox storage:
+- Listing all storage pools across the cluster
+- Retrieving detailed storage information including:
+  * Storage type and content types
+  * Usage statistics and capacity
+  * Availability status
+  * Node assignments
+
+The tools implement fallback mechanisms for scenarios where
+detailed storage information might be temporarily unavailable.
 """
 from typing import List
 from mcp.types import TextContent as Content
@@ -7,16 +18,47 @@ from .base import ProxmoxTool
 from .definitions import GET_STORAGE_DESC
 
 class StorageTools(ProxmoxTool):
-    """Tools for managing Proxmox storage."""
+    """Tools for managing Proxmox storage.
+    
+    Provides functionality for:
+    - Retrieving cluster-wide storage information
+    - Monitoring storage pool status and health
+    - Tracking storage utilization and capacity
+    - Managing storage content types
+    
+    Implements fallback mechanisms for scenarios where detailed
+    storage information might be temporarily unavailable.
+    """
 
     def get_storage(self) -> List[Content]:
-        """List storage pools across the cluster.
+        """List storage pools across the cluster with detailed status.
+
+        Retrieves comprehensive information for each storage pool including:
+        - Basic identification (name, type)
+        - Content types supported (VM disks, backups, ISO images, etc.)
+        - Availability status (online/offline)
+        - Usage statistics:
+          * Used space
+          * Total capacity
+          * Available space
+        
+        Implements a fallback mechanism that returns basic information
+        if detailed status retrieval fails for any storage pool.
 
         Returns:
-            List of Content objects containing storage information
+            List of Content objects containing formatted storage information:
+            {
+                "storage": "storage-name",
+                "type": "storage-type",
+                "content": ["content-types"],
+                "status": "online/offline",
+                "used": bytes,
+                "total": bytes,
+                "available": bytes
+            }
 
         Raises:
-            RuntimeError: If the operation fails
+            RuntimeError: If the cluster-wide storage query fails
         """
         try:
             result = self.proxmox.storage.get()
