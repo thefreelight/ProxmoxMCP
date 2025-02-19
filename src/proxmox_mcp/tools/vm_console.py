@@ -52,9 +52,9 @@ class VMConsoleManager:
                 # Start command execution
                 self.logger.info("Starting command execution...")
                 try:
-                    print(f"Executing command via agent: {command}")
+                    self.logger.debug(f"Executing command via agent: {command}")
                     exec_result = endpoint("exec").post(command=command)
-                    print(f"Raw exec response: {exec_result}")
+                    self.logger.debug(f"Raw exec response: {exec_result}")
                     self.logger.info(f"Command started with result: {exec_result}")
                 except Exception as e:
                     self.logger.error(f"Failed to start command: {str(e)}")
@@ -72,23 +72,20 @@ class VMConsoleManager:
 
                 # Get command output using exec-status
                 try:
-                    print(f"Getting status for PID {pid}...")
+                    self.logger.debug(f"Getting status for PID {pid}...")
                     console = endpoint("exec-status").get(pid=pid)
-                    print(f"Raw exec-status response: {console}")
+                    self.logger.debug(f"Raw exec-status response: {console}")
                     if not console:
                         raise RuntimeError("No response from exec-status")
                 except Exception as e:
                     self.logger.error(f"Failed to get command status: {str(e)}")
                     raise RuntimeError(f"Failed to get command status: {str(e)}")
                 self.logger.info(f"Command completed with status: {console}")
-                print(f"Command completed with status: {console}")
             except Exception as e:
                 self.logger.error(f"API call failed: {str(e)}")
-                print(f"API call error: {str(e)}")  # Print error for immediate feedback
                 raise RuntimeError(f"API call failed: {str(e)}")
-            self.logger.info(f"Raw API response type: {type(console)}")
-            self.logger.info(f"Raw API response: {console}")
-            print(f"Raw API response: {console}")  # Print to stdout for immediate feedback
+            self.logger.debug(f"Raw API response type: {type(console)}")
+            self.logger.debug(f"Raw API response: {console}")
             
             # Handle different response structures
             if isinstance(console, dict):
