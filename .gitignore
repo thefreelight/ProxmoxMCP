@@ -59,3 +59,7 @@ coverage.xml
 
 # Local configuration
 config/config.json
+proxmox-config/config.json
+
+# Augment-specific virtual environment
+.venv_new/
