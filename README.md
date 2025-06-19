@@ -1,6 +1,6 @@
-# ProxmoxMCP - Augment Optimized / Augment 优化炋
+# ProxmoxMCP - Augment Optimized / Augment优化版
 
-[English](#english) | [中文](#中文\)
+[English](#english) | [中文](#中文)
 
 ---
 
@@ -21,7 +21,7 @@ This is an **Augment-optimized fork** of [ProxmoxMCP](https://github.com/canvrno
 | Feature | Original | Augment-Optimized |
 |---------|----------|-------------------|
 | Module Structure | Complex package structure | Single standalone file |
-| Dependencies | Multiple packages | Minimal (aohttp + mcp) |
+| Dependencies | Multiple packages | Minimal (aiohttp + mcp) |
 | Startup Method | `python -m proxmox_mcp.server` | `./start_standalone.sh` |
 | Module Cache Issues | ❌ Present | ✅ Resolved |
 | Augment Compatibility | ⚠️ Problematic | ✅ Perfect |
@@ -76,7 +76,7 @@ Add to your Augment configuration:
 
 ### 📚 Documentation
 
-- [Detailed Setup Guide](AUGMENT_SETUP-md) - Complete installation and configuration
+- [Detailed Setup Guide](AUGMENT_SETUP.md) - Complete installation and configuration
 - [Original Project](https://github.com/canvrno/ProxmoxMCP) - Credit to the original authors
 
 ### 🙏 Credits
@@ -87,35 +87,35 @@ This fork is based on the excellent work by [canvrno](https://github.com/canvrno
 
 ## 中文
 
-俙是 [ProxmoxMCP](https://github.com/canvrno/ProxmoxMCP) 的 **Augment优化分支**，解决了模块导入问题，提供与Augment的无缟集合。
+这是 [ProxmoxMCP](https://github.com/canvrno/ProxmoxMCP) 的 **Augment优化分支**，解决了模块导入问题，并提供与Augment的无缝集成。
 
 ### 🚀 此分支的新特性
 
-- ✅ **独立服务器：**所有码码疽在单个文件中 (`standalone_mcp_server.py`)
-- ✅ **无模块缓存问题，**:消除了Python RuntimeWarning和导入问题
-- ✅ **Augment就尪：**:与Augment的MCP枺构完美兼容
-- ✅ **簡化合置：**最少依赖瞨易易的简易安装
-- ✅ **双诬文档：**:支持觀文和中文支持
+- ✅ **独立服务器**: 所有代码都在单个文件中 (`standalone_mcp_server.py`)
+- ✅ **无模块缓存问题**: 消除Python RuntimeWarning和导入问题
+- ✅ **Augment就绪**: 与Augment的MCP架构完美兼容
+- ✅ **简化设置**: 最少依赖的简易安装
+- ✅ **双语文档**: 支持英文和中文
 
-### 👄 原版 vs Augment优化版
+### 🔄 原版 vs Augment优化版
 
-| 特性 | 原版 | Augment优化炉 |
-|------|------|-------------------|
+| 特性 | 原版 | Augment优化版 |
+|------|------|---------------|
 | 模块结构 | 复杂的包结构 | 单个独立文件 |
-| 依赖管理 | 多个�0� | 最小化 (aohttp + mcp) |
+| 依赖管理 | 多个包 | 最小化 (aiohttp + mcp) |
 | 启动方式 | `python -m proxmox_mcp.server` | `./start_standalone.sh` |
-| 模块缓存问题 | ❌ 存在 | ✅ 已解决了 |
-| Augment兼容性丌 | ⚠️ 有问题 | ✅ 完美 |
+| 模块缓存问题 | ❌ 存在 | ✅ 已解决 |
+| Augment兼容性 | ⚠️ 有问题 | ✅ 完美 |
 
-### 🎯 功能珹性
+### 🎯 功能特性
 
-- **Proxmox VE集合**：完整的Proxmox集合API访问
-- **MCP协议〒〒:标准模型上下文协议实现
-- **实时监控：**：集群状态、节点信息、VM管理
-- **安全认证〒〒:基于代特皎API认证
-- **全面日志：**：详细的操作日志
+- **Proxmox VE集成**: 完整的Proxmox集群API访问
+- **MCP协议**: 标准模型上下文协议实现
+- **实时监控**: 集群状态、节点信息、VM管理
+- **安全认证**: 基于令牌的API认证
+- **全面日志**: 详细的操作日志
 
-### 📦 快鄟开始
+### 📦 忩速开始
 
 #### 1. 克隆和设置
 ```bash
@@ -125,14 +125,15 @@ cd ProxmoxMCP
 # 运行自动化安装
 ./install.sh
 
-# 编辑Proxmox凭据信息
+# 编辑Proxmox凭据
 edit proxmox-config/config.json
 
-# 测试服务器�./start_standalone.sh
+# 测试服务器
+./start_standalone.sh
 ```
 
 #### 2. 配置Augment
-本加到你的Augment配置中：
+添加到你的Augment配置中：
 ```json
 {
   "mcpServers": {
@@ -148,17 +149,17 @@ edit proxmox-config/config.json
 }
 ```
 
-### 🛠ￏ 可用工具
+### 🛠️ 可用工具
 
 - `get_cluster_status` - 获取集群状态和资源摘要
-- `list_nodes` - 列出Proxmox集秤中的所有节点
-- `list_vms` - 列出所有虚拟机器（可选节点轇过）
+- `list_nodes` - 列出Proxmox集群中的所有节点
+- `list_vms` - 列出所有虚拟机（可选节点过滤）
 
-### 📚 文档〒
+### 📚 文档
 
-- [详细设置指南](AUGMENT_SETUP-md) - 完整的安装和配置说昏
+- [详细设置指南](AUGMENT_SETUP.md) - 完整的安装和配置说明
 - [原始项目](https://github.com/canvrno/ProxmoxMCP) - 致敬原作者
 
 ### 🙏 致谢
 
-此分支基于 [canvrno](https://github.com/canvrno) 在原姉[ProxmoxMCP](https://github.com/canvrno/ProxmoxMCP)�h���中的出色工作。保真了所月原始功能，同时本加了Augment特算的改进。
+此分支基于 [canvrno](https://github.com/canvrno) 在原始 [ProxmoxMCP](https://github.com/canvrno/ProxmoxMCP) 项目中的出色工作。我们专门为Augment兼容性进行了优化，同时保持了所有原始功能。
