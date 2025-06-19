@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "proxmox-mcp": {
+      "command": "/Users/jordan/MCP/ProxmoxMCP/start_standalone.sh",
+      "args": [],
+      "cwd": "/Users/jordan/MCP/ProxmoxMCP",
+      "env": {
+        "PROXMOX_MCP_CONFIG": "/Users/jordan/MCP/ProxmoxMCP/proxmox-config/config.json"
+      }
+    }
+  }
+}
