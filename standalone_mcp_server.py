@@ -120,17 +120,37 @@ class SimpleProxmoxClient:
             data = await resp.json()
             return data.get("data", {})
     
-    async def post(self, path: str, data: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def post(self, path: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """POST请求"""
         if not self.session:
             raise Exception("Client not connected")
-            
+
         url = f"{self.base_url}{path}"
-        async with self.session.post(url, data=data or {}) as resp:
-            if resp.status not in [200, 201]:
-                raise Exception(f"HTTP {resp.status}: {await resp.text()}")
-            response_data = await resp.json()
-            return response_data.get("data", {})
+        self.logger.debug(f"Making POST request to: {url}")
+
+        # Proxmox API需要form data格式
+        form_data = aiohttp.FormData()
+        if data:
+            for key, value in data.items():
+                form_data.add_field(key, str(value))
+
+        async with self.session.post(url, data=form_data) as resp:
+            if resp.status == 401:
+                response_text = await resp.text()
+                self.logger.error(f"401 Unauthorized response: {response_text}")
+                raise Exception(f"401 Unauthorized: {response_text}")
+            elif resp.status not in [200, 201]:
+                response_text = await resp.text()
+                self.logger.error(f"HTTP {resp.status} response: {response_text}")
+                raise Exception(f"HTTP {resp.status}: {response_text}")
+
+            try:
+                response_data = await resp.json()
+                return response_data.get("data", response_data)
+            except:
+                # 如果不是JSON响应，返回文本
+                response_text = await resp.text()
+                return {"result": response_text}
 
 
 class StandaloneMCPServer:
@@ -223,6 +243,131 @@ class StandaloneMCPServer:
                         },
                         "required": []
                     }
+                ),
+                Tool(
+                    name="start_vm",
+                    description="Start a virtual machine",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "node": {
+                                "type": "string",
+                                "description": "Node name where the VM is located"
+                            },
+                            "vmid": {
+                                "type": "string",
+                                "description": "VM ID to start"
+                            }
+                        },
+                        "required": ["node", "vmid"]
+                    }
+                ),
+                Tool(
+                    name="stop_vm",
+                    description="Stop a virtual machine",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "node": {
+                                "type": "string",
+                                "description": "Node name where the VM is located"
+                            },
+                            "vmid": {
+                                "type": "string",
+                                "description": "VM ID to stop"
+                            }
+                        },
+                        "required": ["node", "vmid"]
+                    }
+                ),
+                Tool(
+                    name="restart_vm",
+                    description="Restart a virtual machine",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "node": {
+                                "type": "string",
+                                "description": "Node name where the VM is located"
+                            },
+                            "vmid": {
+                                "type": "string",
+                                "description": "VM ID to restart"
+                            }
+                        },
+                        "required": ["node", "vmid"]
+                    }
+                ),
+                Tool(
+                    name="get_vm_status",
+                    description="Get detailed status of a specific virtual machine",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "node": {
+                                "type": "string",
+                                "description": "Node name where the VM is located"
+                            },
+                            "vmid": {
+                                "type": "string",
+                                "description": "VM ID to query"
+                            }
+                        },
+                        "required": ["node", "vmid"]
+                    }
+                ),
+                Tool(
+                    name="list_storage",
+                    description="List all storage pools in the cluster",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                ),
+                Tool(
+                    name="update_vm_memory",
+                    description="Update VM memory allocation",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "node": {
+                                "type": "string",
+                                "description": "Node name where the VM is located"
+                            },
+                            "vmid": {
+                                "type": "string",
+                                "description": "VM ID to update"
+                            },
+                            "memory": {
+                                "type": "string",
+                                "description": "Memory size in MB (e.g., '6144' for 6GB)"
+                            }
+                        },
+                        "required": ["node", "vmid", "memory"]
+                    }
+                ),
+                Tool(
+                    name="update_vm_cpu",
+                    description="Update VM CPU allocation",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "node": {
+                                "type": "string",
+                                "description": "Node name where the VM is located"
+                            },
+                            "vmid": {
+                                "type": "string",
+                                "description": "VM ID to update"
+                            },
+                            "cores": {
+                                "type": "string",
+                                "description": "Number of CPU cores (e.g., '4', '6', '8')"
+                            }
+                        },
+                        "required": ["node", "vmid", "cores"]
+                    }
                 )
             ]
 
@@ -236,6 +381,20 @@ class StandaloneMCPServer:
                     result = await self.list_nodes()
                 elif name == "list_vms":
                     result = await self.list_vms(arguments.get("node"))
+                elif name == "start_vm":
+                    result = await self.start_vm(arguments.get("node"), arguments.get("vmid"))
+                elif name == "stop_vm":
+                    result = await self.stop_vm(arguments.get("node"), arguments.get("vmid"))
+                elif name == "restart_vm":
+                    result = await self.restart_vm(arguments.get("node"), arguments.get("vmid"))
+                elif name == "get_vm_status":
+                    result = await self.get_vm_status(arguments.get("node"), arguments.get("vmid"))
+                elif name == "list_storage":
+                    result = await self.list_storage()
+                elif name == "update_vm_memory":
+                    result = await self.update_vm_memory(arguments.get("node"), arguments.get("vmid"), arguments.get("memory"))
+                elif name == "update_vm_cpu":
+                    result = await self.update_vm_cpu(arguments.get("node"), arguments.get("vmid"), arguments.get("cores"))
                 else:
                     result = f"Unknown tool: {name}"
 
@@ -295,7 +454,111 @@ class StandaloneMCPServer:
             return json.dumps(vms, indent=2)
         except Exception as e:
             return f"Failed to list VMs: {e}"
-    
+
+    async def start_vm(self, node: str, vmid: str) -> str:
+        """启动虚拟机"""
+        try:
+            if not node or not vmid:
+                return "Error: Both node and vmid are required"
+
+            result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/status/start")
+            return f"VM {vmid} start command sent successfully. Task: {result}"
+        except Exception as e:
+            return f"Failed to start VM {vmid}: {e}"
+
+    async def stop_vm(self, node: str, vmid: str) -> str:
+        """停止虚拟机"""
+        try:
+            if not node or not vmid:
+                return "Error: Both node and vmid are required"
+
+            result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/status/stop")
+            return f"VM {vmid} stop command sent successfully. Task: {result}"
+        except Exception as e:
+            return f"Failed to stop VM {vmid}: {e}"
+
+    async def restart_vm(self, node: str, vmid: str) -> str:
+        """重启虚拟机"""
+        try:
+            if not node or not vmid:
+                return "Error: Both node and vmid are required"
+
+            result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/status/reboot")
+            return f"VM {vmid} restart command sent successfully. Task: {result}"
+        except Exception as e:
+            return f"Failed to restart VM {vmid}: {e}"
+
+    async def get_vm_status(self, node: str, vmid: str) -> str:
+        """获取虚拟机详细状态"""
+        try:
+            if not node or not vmid:
+                return "Error: Both node and vmid are required"
+
+            # 获取VM状态
+            status = await self.proxmox_client.get(f"/nodes/{node}/qemu/{vmid}/status/current")
+            # 获取VM配置
+            config = await self.proxmox_client.get(f"/nodes/{node}/qemu/{vmid}/config")
+
+            result = {
+                "status": status,
+                "config": config
+            }
+            return json.dumps(result, indent=2)
+        except Exception as e:
+            return f"Failed to get VM {vmid} status: {e}"
+
+    async def list_storage(self) -> str:
+        """列出存储池"""
+        try:
+            storage = await self.proxmox_client.get("/storage")
+            return json.dumps(storage, indent=2)
+        except Exception as e:
+            return f"Failed to list storage: {e}"
+
+    async def update_vm_memory(self, node: str, vmid: str, memory: str) -> str:
+        """更新虚拟机内存配置"""
+        try:
+            if not node or not vmid or not memory:
+                return "Error: node, vmid, and memory are all required"
+
+            # 验证内存值
+            try:
+                memory_mb = int(memory)
+                if memory_mb < 512 or memory_mb > 32768:
+                    return "Error: Memory must be between 512MB and 32GB"
+            except ValueError:
+                return "Error: Memory must be a valid number in MB"
+
+            # 发送配置更新请求
+            data = {"memory": memory}
+            result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/config", data)
+
+            return f"VM {vmid} memory updated to {memory}MB successfully. You need to restart the VM for changes to take effect. Task: {result}"
+        except Exception as e:
+            return f"Failed to update VM {vmid} memory: {e}"
+
+    async def update_vm_cpu(self, node: str, vmid: str, cores: str) -> str:
+        """更新虚拟机CPU配置"""
+        try:
+            if not node or not vmid or not cores:
+                return "Error: node, vmid, and cores are all required"
+
+            # 验证CPU核心数
+            try:
+                cpu_cores = int(cores)
+                if cpu_cores < 1 or cpu_cores > 32:
+                    return "Error: CPU cores must be between 1 and 32"
+            except ValueError:
+                return "Error: Cores must be a valid number"
+
+            # 发送配置更新请求
+            data = {"cores": cores}
+            result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/config", data)
+
+            return f"VM {vmid} CPU updated to {cores} cores successfully. You need to restart the VM for changes to take effect. Task: {result}"
+        except Exception as e:
+            return f"Failed to update VM {vmid} CPU: {e}"
+
     async def run(self):
         """运行服务器"""
         try:
