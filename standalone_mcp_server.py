@@ -17,9 +17,6 @@ try:
     from mcp.server import Server
     from mcp.server.stdio import stdio_server
     from mcp.types import (
-        CallToolRequest,
-        CallToolResult,
-        ListToolsRequest,
         TextContent,
         Tool,
     )
@@ -78,7 +75,9 @@ class SimpleProxmoxClient:
         self.config = config
         self.session: Optional[aiohttp.ClientSession] = None
         self.base_url = f"https://{config.proxmox.host}:{config.proxmox.port}/api2/json"
+        # 修复认证头格式 - 确保格式正确
         self.auth_header = f"PVEAPIToken={config.auth.user}!{config.auth.token_name}={config.auth.token_value}"
+        self.logger = logging.getLogger("proxmox-mcp.client")
         
     async def connect(self):
         """建立连接"""
@@ -107,11 +106,17 @@ class SimpleProxmoxClient:
             raise Exception("Client not connected")
 
         url = f"{self.base_url}{path}"
+        self.logger.debug(f"Making GET request to: {url}")
+
         async with self.session.get(url) as resp:
             if resp.status == 401:
-                raise Exception("401 Unauthorized: invalid token value!")
+                response_text = await resp.text()
+                self.logger.error(f"401 Unauthorized response: {response_text}")
+                raise Exception(f"401 Unauthorized: {response_text}")
             elif resp.status != 200:
-                raise Exception(f"HTTP {resp.status}: {await resp.text()}")
+                response_text = await resp.text()
+                self.logger.error(f"HTTP {resp.status} response: {response_text}")
+                raise Exception(f"HTTP {resp.status}: {response_text}")
             data = await resp.json()
             return data.get("data", {})
     
@@ -183,8 +188,9 @@ class StandaloneMCPServer:
     
     def register_tools(self):
         """注册工具"""
-        @self.server.list_tools()
-        async def list_tools() -> List[Tool]:
+
+        # 定义工具处理函数
+        async def handle_list_tools() -> List[Tool]:
             return [
                 Tool(
                     name="get_cluster_status",
@@ -199,7 +205,7 @@ class StandaloneMCPServer:
                     name="list_nodes",
                     description="List all nodes in the Proxmox cluster",
                     inputSchema={
-                        "type": "object", 
+                        "type": "object",
                         "properties": {},
                         "required": []
                     }
@@ -219,42 +225,43 @@ class StandaloneMCPServer:
                     }
                 )
             ]
-        
-        @self.server.call_tool()
-        async def call_tool(request: CallToolRequest) -> CallToolResult:
+
+        async def handle_call_tool(name: str, arguments: dict) -> List[TextContent]:
             try:
-                tool_name = request.params.name
-                arguments = request.params.arguments or {}
-                
-                if tool_name == "get_cluster_status":
+                self.logger.debug(f"Tool called: {name} with args: {arguments}")
+
+                if name == "get_cluster_status":
                     result = await self.get_cluster_status()
-                elif tool_name == "list_nodes":
+                elif name == "list_nodes":
                     result = await self.list_nodes()
-                elif tool_name == "list_vms":
+                elif name == "list_vms":
                     result = await self.list_vms(arguments.get("node"))
                 else:
-                    return CallToolResult(
-                        content=[TextContent(type="text", text=f"Unknown tool: {tool_name}")],
-                        isError=True
-                    )
-                
-                return CallToolResult(
-                    content=[TextContent(type="text", text=result)]
-                )
-                
+                    result = f"Unknown tool: {name}"
+
+                return [TextContent(type="text", text=result)]
+
             except Exception as e:
-                self.logger.error(f"Tool execution failed: {e}")
-                return CallToolResult(
-                    content=[TextContent(type="text", text=f"Error: {str(e)}")],
-                    isError=True
-                )
+                error_msg = f"Error: {str(e)}"
+                self.logger.error(f"Tool execution failed: {error_msg}")
+                return [TextContent(type="text", text=error_msg)]
+
+        # 注册处理函数
+        self.server.list_tools()(handle_list_tools)
+        self.server.call_tool()(handle_call_tool)
     
     async def get_cluster_status(self) -> str:
         """获取集群状态"""
         try:
+            if not self.proxmox_client:
+                return "Error: Proxmox client not initialized"
+            if not self.proxmox_client.session:
+                return "Error: Proxmox client session not connected"
+
             status = await self.proxmox_client.get("/cluster/status")
             return json.dumps(status, indent=2)
         except Exception as e:
+            self.logger.error(f"get_cluster_status failed: {e}")
             return f"Failed to get cluster status: {e}"
     
     async def list_nodes(self) -> str:
