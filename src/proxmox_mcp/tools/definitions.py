@@ -49,3 +49,67 @@ GET_CLUSTER_STATUS_DESC = """Get overall Proxmox cluster health and configuratio
 
 Example:
 {"name": "proxmox", "quorum": "ok", "nodes": 3, "ha_status": "active"}"""
+
+# Network tool descriptions
+CONFIGURE_VM_STATIC_IP_DESC = """Configure static IP address inside a VM via guest agent.
+
+Parameters:
+node* - Host node name (e.g. 'pve1')
+vmid* - VM ID number (e.g. '100')
+ip_address* - IP address with CIDR (e.g. '192.168.0.106/24')
+gateway - Gateway IP address (default: '192.168.0.1')
+dns_servers - List of DNS servers (default: ['8.8.8.8', '8.8.4.4'])
+
+Example:
+Configures VM internal network to use static IP by updating netplan configuration."""
+
+CONFIGURE_VM_DHCP_DESC = """Configure VM to use DHCP for network configuration.
+
+Parameters:
+node* - Host node name (e.g. 'pve1')
+vmid* - VM ID number (e.g. '100')
+
+Example:
+Configures VM internal network to use DHCP by updating netplan configuration."""
+
+GET_VM_NETWORK_INFO_DESC = """Get detailed network information from a VM via guest agent.
+
+Parameters:
+node* - Host node name (e.g. 'pve1')
+vmid* - VM ID number (e.g. '100')
+
+Example:
+Returns network interfaces, routing table, DNS configuration, and netplan settings."""
+
+# Cloud-Init tool descriptions
+REGENERATE_CLOUDINIT_DESC = """Regenerate Cloud-Init configuration drive for a VM.
+
+Parameters:
+node* - Host node name (e.g. 'pve1')
+vmid* - VM ID number (e.g. '100')
+
+Example:
+Forces Proxmox to recreate the Cloud-Init ISO with current configuration."""
+
+UPDATE_VM_NETWORK_CLOUDINIT_DESC = """Update VM network configuration and regenerate Cloud-Init drive.
+
+Parameters:
+node* - Host node name (e.g. 'pve1')
+vmid* - VM ID number (e.g. '100')
+ip_address* - IP address with CIDR (e.g. '192.168.0.106/24')
+gateway - Gateway IP address (default: '192.168.0.1')
+
+Example:
+Complete workflow to update network config and regenerate Cloud-Init drive."""
+
+COMPLETE_NETWORK_RECONFIG_DESC = """Complete network reconfiguration workflow with restart.
+
+Parameters:
+node* - Host node name (e.g. 'pve1')
+vmid* - VM ID number (e.g. '100')
+ip_address* - IP address with CIDR (e.g. '192.168.0.106/24')
+vm_name - Optional VM name for display
+gateway - Gateway IP address (default: '192.168.0.1')
+
+Example:
+Updates config, regenerates Cloud-Init, and restarts VM automatically."""

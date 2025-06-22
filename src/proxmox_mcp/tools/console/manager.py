@@ -106,7 +106,7 @@ class VMConsoleManager:
                 self.logger.info("Starting command execution...")
                 try:
                     self.logger.debug(f"Executing command via agent: {command}")
-                    exec_result = endpoint("exec").post(command=command)
+                    exec_result = endpoint("exec").post(**{"command": command})
                     self.logger.debug(f"Raw exec response: {exec_result}")
                     self.logger.info(f"Command started with result: {exec_result}")
                 except Exception as e:
@@ -126,7 +126,7 @@ class VMConsoleManager:
                 # Get command output using exec-status
                 try:
                     self.logger.debug(f"Getting status for PID {pid}...")
-                    console = endpoint("exec-status").get(pid=pid)
+                    console = endpoint("exec-status").get(**{"pid": pid})
                     self.logger.debug(f"Raw exec-status response: {console}")
                     if not console:
                         raise RuntimeError("No response from exec-status")
