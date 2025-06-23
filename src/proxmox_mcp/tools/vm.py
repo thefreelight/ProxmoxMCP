@@ -74,26 +74,69 @@ class VMTools(ProxmoxTool):
             RuntimeError: If the cluster-wide VM query fails
         """
         try:
+            import requests
+
+            # Get connection details from proxmox API object
+            host = getattr(self.proxmox, '_host', 'home.chfastpay.com')
+            port = getattr(self.proxmox, '_port', 8006)
+            user = getattr(self.proxmox, '_user', 'jordan@pve')
+            token_name = getattr(self.proxmox, '_token_name', 'mcp-api')
+            token_value = getattr(self.proxmox, '_token_value', 'c1ccbc3d-45de-475d-9ac0-5bb9ea1a75b7')
+
+            base_url = f"https://{host}:{port}"
+            headers = {
+                "Authorization": f"PVEAPIToken={user}!{token_name}={token_value}",
+                "Content-Type": "application/json"
+            }
+
             result = []
-            for node in self.proxmox.nodes.get():
+
+            # Get nodes list first
+            nodes_url = f"{base_url}/api2/json/nodes"
+            nodes_response = requests.get(nodes_url, headers=headers, verify=False, timeout=30)
+            nodes_response.raise_for_status()
+            nodes_result = nodes_response.json()
+
+            if 'data' not in nodes_result:
+                raise RuntimeError("No data in nodes response")
+
+            for node in nodes_result['data']:
                 node_name = node["node"]
-                vms = self.proxmox.nodes(node_name).qemu.get()
+
+                # Get VMs for this node
+                vms_url = f"{base_url}/api2/json/nodes/{node_name}/qemu"
+                vms_response = requests.get(vms_url, headers=headers, verify=False, timeout=30)
+                vms_response.raise_for_status()
+                vms_result = vms_response.json()
+
+                if 'data' not in vms_result:
+                    continue
+
+                vms = vms_result['data']
                 for vm in vms:
                     vmid = vm["vmid"]
                     # Get VM config for CPU cores
                     try:
-                        config = self.proxmox.nodes(node_name).qemu(vmid).config.get()
-                        result.append({
-                            "vmid": vmid,
-                            "name": vm["name"],
-                            "status": vm["status"],
-                            "node": node_name,
-                            "cpus": config.get("cores", "N/A"),
-                            "memory": {
-                                "used": vm.get("mem", 0),
-                                "total": vm.get("maxmem", 0)
-                            }
-                        })
+                        config_url = f"{base_url}/api2/json/nodes/{node_name}/qemu/{vmid}/config"
+                        config_response = requests.get(config_url, headers=headers, verify=False, timeout=30)
+                        config_response.raise_for_status()
+                        config_result = config_response.json()
+
+                        if 'data' in config_result:
+                            config = config_result['data']
+                            result.append({
+                                "vmid": vmid,
+                                "name": vm["name"],
+                                "status": vm["status"],
+                                "node": node_name,
+                                "cpus": config.get("cores", "N/A"),
+                                "memory": {
+                                    "used": vm.get("mem", 0),
+                                    "total": vm.get("maxmem", 0)
+                                }
+                            })
+                        else:
+                            raise Exception("No config data")
                     except Exception:
                         # Fallback if can't get config
                         result.append({
@@ -138,7 +181,14 @@ class VMTools(ProxmoxTool):
             RuntimeError: If command execution fails due to permissions or other issues
         """
         try:
+            self.logger.info(f"VM Tools: execute_command called with node={node}, vmid={vmid}, command={command}")
+            self.logger.info(f"VM Tools: console_manager type: {type(self.console_manager)}")
+
             result = await self.console_manager.execute_command(node, vmid, command)
+
+            self.logger.info(f"VM Tools: console_manager.execute_command completed successfully")
+            self.logger.info(f"VM Tools: result type: {type(result)}, content: {result}")
+
             # Use the command output formatter from ProxmoxFormatters
             from ..formatting import ProxmoxFormatters
             formatted = ProxmoxFormatters.format_command_output(
@@ -147,6 +197,11 @@ class VMTools(ProxmoxTool):
                 output=result["output"],
                 error=result.get("error")
             )
+
+            self.logger.info(f"VM Tools: formatted result successfully")
             return [Content(type="text", text=formatted)]
         except Exception as e:
+            self.logger.error(f"VM Tools: execute_command failed: {str(e)}")
+            import traceback
+            self.logger.error(f"VM Tools: Full traceback: {traceback.format_exc()}")
             self._handle_error(f"execute command on VM {vmid}", e)

@@ -10,11 +10,20 @@ This is an **Augment-optimized fork** of [ProxmoxMCP](https://github.com/canvrno
 
 ### 🚀 What's New in This Fork
 
+- 🤖 **Full integration with Augment and Cline**
+- 🛠️ **Built with the official MCP SDK**
+- 🔒 **Secure token-based authentication with Proxmox**
+- 🖥️ **Comprehensive node and VM management**
+- 💻 **VM console command execution via Guest Agent**
+- 🌐 **Advanced network configuration and Cloud-Init support**
+- 🔄 **Automated VM deployment and configuration workflows**
+- 📝 **Configurable logging system**
+- ✅ **Type-safe implementation with Pydantic**
+- 🎨 **Rich output formatting with customizable themes**
+- 🌍 **Remote access support (no same-network requirement)**
 - ✅ **Standalone Server**: All code in a single file (`standalone_mcp_server.py`)
 - ✅ **No Module Cache Issues**: Eliminates Python RuntimeWarning and import problems
 - ✅ **Augment Ready**: Perfect compatibility with Augment's MCP architecture
-- ✅ **Simplified Setup**: Easy installation with minimal dependencies
-- ✅ **Bilingual Documentation**: English and Chinese support
 
 ### 🔄 Original vs Augment-Optimized
 

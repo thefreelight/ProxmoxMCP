@@ -60,6 +60,16 @@ coverage.xml
 # Local configuration
 config/config.json
 proxmox-config/config.json
+proxmox-config/
 
 # Augment-specific virtual environment
 .venv_new/
+
+# Temporary scripts and files
+*.sh
+*.py.bak
+temp_*
+fix_*
+k8s-*
+install-*
+simple_*

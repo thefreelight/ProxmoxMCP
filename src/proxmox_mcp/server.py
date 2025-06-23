@@ -32,6 +32,8 @@ from .tools.node import NodeTools
 from .tools.vm import VMTools
 from .tools.storage import StorageTools
 from .tools.cluster import ClusterTools
+from .tools.network import NetworkTools
+from .tools.cloudinit import CloudInitTools
 from .tools.definitions import (
     GET_NODES_DESC,
     GET_NODE_STATUS_DESC,
@@ -39,7 +41,13 @@ from .tools.definitions import (
     EXECUTE_VM_COMMAND_DESC,
     GET_CONTAINERS_DESC,
     GET_STORAGE_DESC,
-    GET_CLUSTER_STATUS_DESC
+    GET_CLUSTER_STATUS_DESC,
+    CONFIGURE_VM_STATIC_IP_DESC,
+    CONFIGURE_VM_DHCP_DESC,
+    GET_VM_NETWORK_INFO_DESC,
+    REGENERATE_CLOUDINIT_DESC,
+    UPDATE_VM_NETWORK_CLOUDINIT_DESC,
+    COMPLETE_NETWORK_RECONFIG_DESC
 )
 
 class ProxmoxMCPServer:
@@ -63,6 +71,8 @@ class ProxmoxMCPServer:
         self.vm_tools = VMTools(self.proxmox)
         self.storage_tools = StorageTools(self.proxmox)
         self.cluster_tools = ClusterTools(self.proxmox)
+        self.network_tools = NetworkTools(self.proxmox)
+        self.cloudinit_tools = CloudInitTools(self.proxmox)
         
         # Initialize MCP server
         self.mcp = FastMCP("ProxmoxMCP")
@@ -103,7 +113,16 @@ class ProxmoxMCPServer:
             vmid: Annotated[str, Field(description="VM ID number (e.g. '100', '101')")],
             command: Annotated[str, Field(description="Shell command to run (e.g. 'uname -a', 'systemctl status nginx')")]
         ):
-            return await self.vm_tools.execute_command(node, vmid, command)
+            self.logger.info(f"MCP Server: execute_vm_command called with node={node}, vmid={vmid}, command={command}")
+            try:
+                result = await self.vm_tools.execute_command(node, vmid, command)
+                self.logger.info(f"MCP Server: execute_vm_command completed successfully")
+                return result
+            except Exception as e:
+                self.logger.error(f"MCP Server: execute_vm_command failed: {str(e)}")
+                import traceback
+                self.logger.error(f"MCP Server: Full traceback: {traceback.format_exc()}")
+                raise
 
         # Storage tools
         @self.mcp.tool(description=GET_STORAGE_DESC)
@@ -114,6 +133,58 @@ class ProxmoxMCPServer:
         @self.mcp.tool(description=GET_CLUSTER_STATUS_DESC)
         def get_cluster_status():
             return self.cluster_tools.get_cluster_status()
+
+        # Network tools
+        @self.mcp.tool(description=CONFIGURE_VM_STATIC_IP_DESC)
+        async def configure_vm_static_ip(
+            node: Annotated[str, Field(description="Host node name (e.g. 'pve1')")],
+            vmid: Annotated[str, Field(description="VM ID number (e.g. '100')")],
+            ip_address: Annotated[str, Field(description="IP address with CIDR (e.g. '192.168.0.106/24')")],
+            gateway: Annotated[str, Field(description="Gateway IP address", default="192.168.0.1")] = "192.168.0.1",
+            dns_servers: Annotated[List[str], Field(description="List of DNS servers", default=["8.8.8.8", "8.8.4.4"])] = None
+        ):
+            return await self.network_tools.configure_vm_static_ip(node, vmid, ip_address, gateway, dns_servers)
+
+        @self.mcp.tool(description=CONFIGURE_VM_DHCP_DESC)
+        async def configure_vm_dhcp(
+            node: Annotated[str, Field(description="Host node name (e.g. 'pve1')")],
+            vmid: Annotated[str, Field(description="VM ID number (e.g. '100')")]
+        ):
+            return await self.network_tools.configure_vm_dhcp(node, vmid)
+
+        @self.mcp.tool(description=GET_VM_NETWORK_INFO_DESC)
+        async def get_vm_network_info(
+            node: Annotated[str, Field(description="Host node name (e.g. 'pve1')")],
+            vmid: Annotated[str, Field(description="VM ID number (e.g. '100')")]
+        ):
+            return await self.network_tools.get_vm_network_info(node, vmid)
+
+        # Cloud-Init tools
+        @self.mcp.tool(description=REGENERATE_CLOUDINIT_DESC)
+        def regenerate_cloudinit_drive(
+            node: Annotated[str, Field(description="Host node name (e.g. 'pve1')")],
+            vmid: Annotated[str, Field(description="VM ID number (e.g. '100')")]
+        ):
+            return self.cloudinit_tools.regenerate_cloudinit_drive(node, vmid)
+
+        @self.mcp.tool(description=UPDATE_VM_NETWORK_CLOUDINIT_DESC)
+        def update_vm_network_and_regenerate(
+            node: Annotated[str, Field(description="Host node name (e.g. 'pve1')")],
+            vmid: Annotated[str, Field(description="VM ID number (e.g. '100')")],
+            ip_address: Annotated[str, Field(description="IP address with CIDR (e.g. '192.168.0.106/24')")],
+            gateway: Annotated[str, Field(description="Gateway IP address", default="192.168.0.1")] = "192.168.0.1"
+        ):
+            return self.cloudinit_tools.update_vm_network_and_regenerate(node, vmid, ip_address, gateway)
+
+        @self.mcp.tool(description=COMPLETE_NETWORK_RECONFIG_DESC)
+        def complete_network_reconfiguration(
+            node: Annotated[str, Field(description="Host node name (e.g. 'pve1')")],
+            vmid: Annotated[str, Field(description="VM ID number (e.g. '100')")],
+            ip_address: Annotated[str, Field(description="IP address with CIDR (e.g. '192.168.0.106/24')")],
+            vm_name: Annotated[str, Field(description="Optional VM name for display", default="")] = "",
+            gateway: Annotated[str, Field(description="Gateway IP address", default="192.168.0.1")] = "192.168.0.1"
+        ):
+            return self.cloudinit_tools.complete_network_reconfiguration(node, vmid, ip_address, vm_name, gateway)
 
     def start(self) -> None:
         """Start the MCP server.

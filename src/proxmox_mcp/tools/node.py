@@ -59,25 +59,57 @@ class NodeTools(ProxmoxTool):
             RuntimeError: If the cluster-wide node query fails
         """
         try:
-            result = self.proxmox.nodes.get()
+            import requests
+
+            # Get connection details from proxmox API object
+            host = getattr(self.proxmox, '_host', 'home.chfastpay.com')
+            port = getattr(self.proxmox, '_port', 8006)
+            user = getattr(self.proxmox, '_user', 'jordan@pve')
+            token_name = getattr(self.proxmox, '_token_name', 'mcp-api')
+            token_value = getattr(self.proxmox, '_token_value', 'c1ccbc3d-45de-475d-9ac0-5bb9ea1a75b7')
+
+            base_url = f"https://{host}:{port}"
+            headers = {
+                "Authorization": f"PVEAPIToken={user}!{token_name}={token_value}",
+                "Content-Type": "application/json"
+            }
+
+            # Get nodes list
+            nodes_url = f"{base_url}/api2/json/nodes"
+            nodes_response = requests.get(nodes_url, headers=headers, verify=False, timeout=30)
+            nodes_response.raise_for_status()
+            nodes_result = nodes_response.json()
+
+            if 'data' not in nodes_result:
+                raise RuntimeError("No data in nodes response")
+
+            result = nodes_result['data']
             nodes = []
-            
+
             # Get detailed info for each node
             for node in result:
                 node_name = node["node"]
                 try:
                     # Get detailed status for each node
-                    status = self.proxmox.nodes(node_name).status.get()
-                    nodes.append({
-                        "node": node_name,
-                        "status": node["status"],
-                        "uptime": status.get("uptime", 0),
-                        "maxcpu": status.get("cpuinfo", {}).get("cpus", "N/A"),
-                        "memory": {
-                            "used": status.get("memory", {}).get("used", 0),
-                            "total": status.get("memory", {}).get("total", 0)
-                        }
-                    })
+                    status_url = f"{base_url}/api2/json/nodes/{node_name}/status"
+                    status_response = requests.get(status_url, headers=headers, verify=False, timeout=30)
+                    status_response.raise_for_status()
+                    status_result = status_response.json()
+
+                    if 'data' in status_result:
+                        status = status_result['data']
+                        nodes.append({
+                            "node": node_name,
+                            "status": node["status"],
+                            "uptime": status.get("uptime", 0),
+                            "maxcpu": status.get("cpuinfo", {}).get("cpus", "N/A"),
+                            "memory": {
+                                "used": status.get("memory", {}).get("used", 0),
+                                "total": status.get("memory", {}).get("total", 0)
+                            }
+                        })
+                    else:
+                        raise Exception("No status data")
                 except Exception:
                     # Fallback to basic info if detailed status fails
                     nodes.append({
@@ -129,7 +161,31 @@ class NodeTools(ProxmoxTool):
             RuntimeError: If status retrieval fails (node offline, network issues)
         """
         try:
-            result = self.proxmox.nodes(node).status.get()
+            import requests
+
+            # Get connection details from proxmox API object
+            host = getattr(self.proxmox, '_host', 'home.chfastpay.com')
+            port = getattr(self.proxmox, '_port', 8006)
+            user = getattr(self.proxmox, '_user', 'jordan@pve')
+            token_name = getattr(self.proxmox, '_token_name', 'mcp-api')
+            token_value = getattr(self.proxmox, '_token_value', 'c1ccbc3d-45de-475d-9ac0-5bb9ea1a75b7')
+
+            base_url = f"https://{host}:{port}"
+            headers = {
+                "Authorization": f"PVEAPIToken={user}!{token_name}={token_value}",
+                "Content-Type": "application/json"
+            }
+
+            # Get node status
+            status_url = f"{base_url}/api2/json/nodes/{node}/status"
+            status_response = requests.get(status_url, headers=headers, verify=False, timeout=30)
+            status_response.raise_for_status()
+            status_result = status_response.json()
+
+            if 'data' not in status_result:
+                raise RuntimeError("No data in node status response")
+
+            result = status_result['data']
             return self._format_response((node, result), "node_status")
         except Exception as e:
             self._handle_error(f"get status for node {node}", e)
