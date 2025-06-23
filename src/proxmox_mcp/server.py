@@ -113,7 +113,16 @@ class ProxmoxMCPServer:
             vmid: Annotated[str, Field(description="VM ID number (e.g. '100', '101')")],
             command: Annotated[str, Field(description="Shell command to run (e.g. 'uname -a', 'systemctl status nginx')")]
         ):
-            return await self.vm_tools.execute_command(node, vmid, command)
+            self.logger.info(f"MCP Server: execute_vm_command called with node={node}, vmid={vmid}, command={command}")
+            try:
+                result = await self.vm_tools.execute_command(node, vmid, command)
+                self.logger.info(f"MCP Server: execute_vm_command completed successfully")
+                return result
+            except Exception as e:
+                self.logger.error(f"MCP Server: execute_vm_command failed: {str(e)}")
+                import traceback
+                self.logger.error(f"MCP Server: Full traceback: {traceback.format_exc()}")
+                raise
 
         # Storage tools
         @self.mcp.tool(description=GET_STORAGE_DESC)

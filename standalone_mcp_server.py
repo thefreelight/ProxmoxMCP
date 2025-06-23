@@ -103,15 +103,17 @@ class SimpleProxmoxClient:
         if self.session:
             await self.session.close()
     
-    async def get(self, path: str) -> Dict[str, Any]:
+    async def get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """GET请求"""
         if not self.session:
             raise Exception("Client not connected")
 
         url = f"{self.base_url}{path}"
         self.logger.debug(f"Making GET request to: {url}")
+        self.logger.debug(f"GET method called with path={path}, params={params}")
+        print(f"DEBUG: GET method called with path={path}, params={params}")  # 添加调试输出
 
-        async with self.session.get(url) as resp:
+        async with self.session.get(url, params=params) as resp:
             if resp.status == 401:
                 response_text = await resp.text()
                 self.logger.error(f"401 Unauthorized response: {response_text}")
@@ -992,8 +994,29 @@ class StandaloneMCPServer:
 
             # 通过guest agent执行命令
             try:
-                # 启动命令执行
-                exec_result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/agent/exec", {"command": command})
+                # 启动命令执行 - 根据Proxmox论坛，复杂命令需要特殊处理
+                if ' ' in command or any(char in command for char in ['|', '>', '<', ';', '&&', '||', '$', '`', '"', "'"]):
+                    # 复杂命令：使用bash -c格式，需要特殊的form data处理
+                    # 根据Proxmox论坛：需要多个command参数
+
+                    # 直接构建form data，每个命令部分作为单独的command参数
+                    form_data = aiohttp.FormData()
+                    form_data.add_field('command', '/bin/bash')
+                    form_data.add_field('command', '-c')
+                    form_data.add_field('command', command)
+
+                    # 直接使用session发送请求
+                    url = f"{self.proxmox_client.base_url}/nodes/{node}/qemu/{vmid}/agent/exec"
+                    async with self.proxmox_client.session.post(url, data=form_data) as resp:
+                        if resp.status not in [200, 201]:
+                            response_text = await resp.text()
+                            raise Exception(f"HTTP {resp.status}: {response_text}")
+                        exec_result = await resp.json()
+                        exec_result = exec_result.get("data", exec_result)
+                else:
+                    # 简单命令：直接执行
+                    exec_data = {"command": command}
+                    exec_result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/agent/exec", exec_data)
 
                 if 'pid' not in exec_result:
                     return f"Error: Failed to start command execution: {exec_result}"
@@ -1005,7 +1028,7 @@ class StandaloneMCPServer:
                 await asyncio.sleep(2)  # 给命令一些时间执行
 
                 # 获取命令结果
-                status_result = await self.proxmox_client.get(f"/nodes/{node}/qemu/{vmid}/agent/exec-status", {"pid": pid})
+                status_result = await self.proxmox_client.get(f"/nodes/{node}/qemu/{vmid}/agent/exec-status", params={"pid": pid})
 
                 output = status_result.get("out-data", "")
                 error = status_result.get("err-data", "")

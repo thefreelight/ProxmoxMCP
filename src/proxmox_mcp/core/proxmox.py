@@ -68,36 +68,29 @@ class ProxmoxManager:
         }
 
     def _setup_api(self) -> ProxmoxAPI:
-        """Initialize and test Proxmox API connection.
+        """Initialize Proxmox API connection.
 
-        Performs the following steps:
-        1. Creates ProxmoxAPI instance with configured settings
-        2. Tests connection by making a version check request
-        3. Validates authentication and permissions
-        4. Logs connection status and any issues
+        Creates ProxmoxAPI instance with configured settings.
+        Connection testing is deferred to actual API calls to allow
+        for remote/intermittent connectivity scenarios.
 
         Returns:
-            Initialized and tested ProxmoxAPI instance
+            Initialized ProxmoxAPI instance
 
         Raises:
-            RuntimeError: If connection fails due to:
-                        - Invalid host/port
-                        - Authentication failure
-                        - Network connectivity issues
-                        - SSL certificate validation errors
+            RuntimeError: If API initialization fails
         """
         try:
-            self.logger.info(f"Connecting to Proxmox host: {self.config['host']}")
+            self.logger.info(f"Initializing Proxmox API for host: {self.config['host']}")
             api = ProxmoxAPI(**self.config)
-            
-            # Test connection
-            api.version.get()
-            self.logger.info("Successfully connected to Proxmox API")
-            
+
+            # Skip initial connection test to allow for remote connectivity
+            self.logger.info("Proxmox API initialized (connection will be tested on first use)")
+
             return api
         except Exception as e:
-            self.logger.error(f"Failed to connect to Proxmox: {e}")
-            raise RuntimeError(f"Failed to connect to Proxmox: {e}")
+            self.logger.error(f"Failed to initialize Proxmox API: {e}")
+            raise RuntimeError(f"Failed to initialize Proxmox API: {e}")
 
     def get_api(self) -> ProxmoxAPI:
         """Get the initialized Proxmox API instance.

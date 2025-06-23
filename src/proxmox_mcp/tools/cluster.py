@@ -64,7 +64,31 @@ class ClusterTools(ProxmoxTool):
                         - API endpoint failures
         """
         try:
-            result = self.proxmox.cluster.status.get()
+            import requests
+
+            # Get connection details from proxmox API object
+            host = getattr(self.proxmox, '_host', 'home.chfastpay.com')
+            port = getattr(self.proxmox, '_port', 8006)
+            user = getattr(self.proxmox, '_user', 'jordan@pve')
+            token_name = getattr(self.proxmox, '_token_name', 'mcp-api')
+            token_value = getattr(self.proxmox, '_token_value', 'c1ccbc3d-45de-475d-9ac0-5bb9ea1a75b7')
+
+            base_url = f"https://{host}:{port}"
+            headers = {
+                "Authorization": f"PVEAPIToken={user}!{token_name}={token_value}",
+                "Content-Type": "application/json"
+            }
+
+            # Get cluster status
+            cluster_url = f"{base_url}/api2/json/cluster/status"
+            cluster_response = requests.get(cluster_url, headers=headers, verify=False, timeout=30)
+            cluster_response.raise_for_status()
+            cluster_result = cluster_response.json()
+
+            if 'data' not in cluster_result:
+                raise RuntimeError("No data in cluster response")
+
+            result = cluster_result['data']
             status = {
                 "name": result[0].get("name") if result else None,
                 "quorum": result[0].get("quorate"),

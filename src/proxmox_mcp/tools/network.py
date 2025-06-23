@@ -61,8 +61,32 @@ class NetworkTools(ProxmoxTool):
         try:
             self.logger.info(f"Configuring static IP {ip_address} for VM {vmid} on node {node}")
 
-            # Verify VM is running
-            vm_status = self.proxmox.nodes(node).qemu(vmid).status.current.get()
+            # Verify VM is running using direct HTTP call
+            import requests
+
+            # Get connection details from proxmox API object
+            host = getattr(self.proxmox, '_host', 'home.chfastpay.com')
+            port = getattr(self.proxmox, '_port', 8006)
+            user = getattr(self.proxmox, '_user', 'jordan@pve')
+            token_name = getattr(self.proxmox, '_token_name', 'mcp-api')
+            token_value = getattr(self.proxmox, '_token_value', 'c1ccbc3d-45de-475d-9ac0-5bb9ea1a75b7')
+
+            base_url = f"https://{host}:{port}"
+            headers = {
+                "Authorization": f"PVEAPIToken={user}!{token_name}={token_value}",
+                "Content-Type": "application/json"
+            }
+
+            # Check VM status
+            status_url = f"{base_url}/api2/json/nodes/{node}/qemu/{vmid}/status/current"
+            status_response = requests.get(status_url, headers=headers, verify=False, timeout=30)
+            status_response.raise_for_status()
+            status_result = status_response.json()
+
+            if 'data' not in status_result:
+                raise ValueError(f"VM {vmid} not found on node {node}")
+
+            vm_status = status_result['data']
             if vm_status["status"] != "running":
                 raise ValueError(f"VM {vmid} on node {node} is not running")
 
@@ -225,27 +249,65 @@ class NetworkTools(ProxmoxTool):
             RuntimeError: If command execution fails
         """
         try:
-            # Get the API endpoint
-            endpoint = self.proxmox.nodes(node).qemu(vmid).agent
+            import requests
+
+            # Get connection details from proxmox API object
+            host = getattr(self.proxmox, '_host', 'home.chfastpay.com')
+            port = getattr(self.proxmox, '_port', 8006)
+            user = getattr(self.proxmox, '_user', 'jordan@pve')
+            token_name = getattr(self.proxmox, '_token_name', 'mcp-api')
+            token_value = getattr(self.proxmox, '_token_value', 'c1ccbc3d-45de-475d-9ac0-5bb9ea1a75b7')
+
+            base_url = f"https://{host}:{port}"
+            headers = {
+                "Authorization": f"PVEAPIToken={user}!{token_name}={token_value}",
+                "Content-Type": "application/json"
+            }
 
             # Execute the command
-            exec_result = endpoint("exec").post(command=command)
-            if 'pid' not in exec_result:
+            exec_url = f"{base_url}/api2/json/nodes/{node}/qemu/{vmid}/agent/exec"
+
+            # Use simple command format (works better than NULL separators)
+            # For complex commands, we'll wrap them in a shell script
+            if ' ' in command or '|' in command or '>' in command or '<' in command or ';' in command or '&&' in command:
+                # Complex command - wrap in shell
+                formatted_command = f"bash -c '{command}'"
+            else:
+                # Simple command - use as is
+                formatted_command = command
+
+            exec_data = {"command": formatted_command}
+
+            exec_response = requests.post(exec_url, headers=headers, json=exec_data, verify=False, timeout=30)
+            exec_response.raise_for_status()
+            exec_result = exec_response.json()
+
+            if 'data' not in exec_result or 'pid' not in exec_result['data']:
                 raise RuntimeError("No PID returned from command execution")
 
-            pid = exec_result['pid']
-            
+            pid = exec_result['data']['pid']
+
             # Wait for command completion
             await asyncio.sleep(2)
 
             # Get command output
-            status_result = endpoint("exec-status").get(pid=pid)
-            
+            status_url = f"{base_url}/api2/json/nodes/{node}/qemu/{vmid}/agent/exec-status"
+            status_params = {"pid": str(pid)}
+
+            status_response = requests.get(status_url, headers=headers, params=status_params, verify=False, timeout=30)
+            status_response.raise_for_status()
+            status_result = status_response.json()
+
+            if 'data' not in status_result:
+                raise RuntimeError("No data in status response")
+
+            status_data = status_result['data']
+
             return {
                 "success": True,
-                "output": status_result.get("out-data", ""),
-                "error": status_result.get("err-data", ""),
-                "exit_code": status_result.get("exitcode", 0)
+                "output": status_data.get("out-data", ""),
+                "error": status_data.get("err-data", ""),
+                "exit_code": status_data.get("exitcode", 0)
             }
 
         except Exception as e:

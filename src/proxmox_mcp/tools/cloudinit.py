@@ -123,15 +123,40 @@ class CloudInitTools(ProxmoxTool):
         try:
             self.logger.info(f"Getting Cloud-Init {config_type} config for VM {vmid}")
             
+            # Get the Cloud-Init configuration using direct HTTP calls
+            import requests
+
+            # Get connection details from proxmox API object
+            host = getattr(self.proxmox, '_host', 'home.chfastpay.com')
+            port = getattr(self.proxmox, '_port', 8006)
+            user = getattr(self.proxmox, '_user', 'jordan@pve')
+            token_name = getattr(self.proxmox, '_token_name', 'mcp-api')
+            token_value = getattr(self.proxmox, '_token_value', 'c1ccbc3d-45de-475d-9ac0-5bb9ea1a75b7')
+
+            base_url = f"https://{host}:{port}"
+            headers = {
+                "Authorization": f"PVEAPIToken={user}!{token_name}={token_value}",
+                "Content-Type": "application/json"
+            }
+
             # Get the Cloud-Init configuration
             if config_type == "user":
-                result = self.proxmox.nodes(node).qemu(vmid).cloudinit.user.get()
+                config_url = f"{base_url}/api2/json/nodes/{node}/qemu/{vmid}/cloudinit/user"
             elif config_type == "network":
-                result = self.proxmox.nodes(node).qemu(vmid).cloudinit.network.get()
+                config_url = f"{base_url}/api2/json/nodes/{node}/qemu/{vmid}/cloudinit/network"
             elif config_type == "meta":
-                result = self.proxmox.nodes(node).qemu(vmid).cloudinit.meta.get()
+                config_url = f"{base_url}/api2/json/nodes/{node}/qemu/{vmid}/cloudinit/meta"
             else:
                 raise ValueError(f"Invalid config type: {config_type}")
+
+            config_response = requests.get(config_url, headers=headers, verify=False, timeout=30)
+            config_response.raise_for_status()
+            config_result = config_response.json()
+
+            if 'data' not in config_result:
+                raise RuntimeError("No data in cloud-init config response")
+
+            result = config_result['data']
             
             return [Content(
                 type="text",
@@ -171,17 +196,40 @@ class CloudInitTools(ProxmoxTool):
             
             results = []
             
+            # Use direct HTTP calls for all operations
+            import requests
+
+            # Get connection details from proxmox API object
+            host = getattr(self.proxmox, '_host', 'home.chfastpay.com')
+            port = getattr(self.proxmox, '_port', 8006)
+            user = getattr(self.proxmox, '_user', 'jordan@pve')
+            token_name = getattr(self.proxmox, '_token_name', 'mcp-api')
+            token_value = getattr(self.proxmox, '_token_value', 'c1ccbc3d-45de-475d-9ac0-5bb9ea1a75b7')
+
+            base_url = f"https://{host}:{port}"
+            headers = {
+                "Authorization": f"PVEAPIToken={user}!{token_name}={token_value}",
+                "Content-Type": "application/json"
+            }
+
             # Step 1: Update network configuration
             ipconfig = f"ip={ip_address},gw={gateway}"
-            config_result = self.proxmox.nodes(node).qemu(vmid).config.put(ipconfig0=ipconfig)
+            config_url = f"{base_url}/api2/json/nodes/{node}/qemu/{vmid}/config"
+            config_data = {"ipconfig0": ipconfig}
+            config_response = requests.put(config_url, headers=headers, json=config_data, verify=False, timeout=30)
+            config_response.raise_for_status()
             results.append(f"✅ Network configuration updated: {ip_address}")
-            
+
             # Step 2: Regenerate Cloud-Init drive
-            cloudinit_result = self.proxmox.nodes(node).qemu(vmid).cloudinit.put()
+            cloudinit_url = f"{base_url}/api2/json/nodes/{node}/qemu/{vmid}/cloudinit"
+            cloudinit_response = requests.put(cloudinit_url, headers=headers, verify=False, timeout=30)
+            cloudinit_response.raise_for_status()
             results.append("✅ Cloud-Init drive regenerated")
-            
+
             # Step 3: Restart VM
-            restart_result = self.proxmox.nodes(node).qemu(vmid).status.reboot.post()
+            restart_url = f"{base_url}/api2/json/nodes/{node}/qemu/{vmid}/status/reboot"
+            restart_response = requests.post(restart_url, headers=headers, verify=False, timeout=30)
+            restart_response.raise_for_status()
             results.append("🔄 VM restart initiated")
             
             return [Content(
