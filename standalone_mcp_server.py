@@ -152,6 +152,38 @@ class SimpleProxmoxClient:
                 response_text = await resp.text()
                 return {"result": response_text}
 
+    async def put(self, path: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """PUT请求"""
+        if not self.session:
+            raise Exception("Client not connected")
+
+        url = f"{self.base_url}{path}"
+        self.logger.debug(f"Making PUT request to: {url}")
+
+        # Proxmox API需要form data格式
+        form_data = aiohttp.FormData()
+        if data:
+            for key, value in data.items():
+                form_data.add_field(key, str(value))
+
+        async with self.session.put(url, data=form_data) as resp:
+            if resp.status == 401:
+                response_text = await resp.text()
+                self.logger.error(f"401 Unauthorized response: {response_text}")
+                raise Exception(f"401 Unauthorized: {response_text}")
+            elif resp.status not in [200, 201]:
+                response_text = await resp.text()
+                self.logger.error(f"HTTP {resp.status} response: {response_text}")
+                raise Exception(f"HTTP {resp.status}: {response_text}")
+
+            try:
+                response_data = await resp.json()
+                return response_data.get("data", response_data)
+            except:
+                # 如果不是JSON响应，返回文本
+                response_text = await resp.text()
+                return {"result": response_text}
+
 
 class StandaloneMCPServer:
     """独立的MCP服务器"""
@@ -368,7 +400,30 @@ class StandaloneMCPServer:
                         },
                         "required": ["node", "vmid", "cores"]
                     }
-                )
+                ),
+                Tool(
+                    name="update_vm_storage",
+                    description="Update VM storage disk size (resize disk)",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "node": {
+                                "type": "string",
+                                "description": "Node name where the VM is located"
+                            },
+                            "vmid": {
+                                "type": "string",
+                                "description": "VM ID to update"
+                            },
+                            "storage_size": {
+                                "type": "string",
+                                "description": "New disk size (e.g., '20G', '50G', '100G')"
+                            }
+                        },
+                        "required": ["node", "vmid", "storage_size"]
+                    }
+                ),
+
             ]
 
         async def handle_call_tool(name: str, arguments: dict) -> List[TextContent]:
@@ -395,6 +450,8 @@ class StandaloneMCPServer:
                     result = await self.update_vm_memory(arguments.get("node"), arguments.get("vmid"), arguments.get("memory"))
                 elif name == "update_vm_cpu":
                     result = await self.update_vm_cpu(arguments.get("node"), arguments.get("vmid"), arguments.get("cores"))
+                elif name == "update_vm_storage":
+                    result = await self.update_vm_storage(arguments.get("node"), arguments.get("vmid"), arguments.get("storage_size"))
                 else:
                     result = f"Unknown tool: {name}"
 
@@ -558,6 +615,46 @@ class StandaloneMCPServer:
             return f"VM {vmid} CPU updated to {cores} cores successfully. You need to restart the VM for changes to take effect. Task: {result}"
         except Exception as e:
             return f"Failed to update VM {vmid} CPU: {e}"
+
+    async def update_vm_storage(self, node: str, vmid: str, storage_size: str) -> str:
+        """更新虚拟机存储大小"""
+        try:
+            if not node or not vmid or not storage_size:
+                return "Error: node, vmid, and storage_size are all required"
+
+            # 验证存储大小格式
+            if not storage_size.endswith(('G', 'M', 'T')):
+                return "Error: Storage size must end with G, M, or T (e.g., '20G', '1024M', '1T')"
+
+            # 获取VM配置以找到主磁盘
+            try:
+                config = await self.proxmox_client.get(f"/nodes/{node}/qemu/{vmid}/config")
+
+                # 查找主磁盘 (通常是 scsi0, virtio0, ide0, sata0)
+                disk_key = None
+                for key in ['scsi0', 'virtio0', 'ide0', 'sata0']:
+                    if key in config:
+                        disk_key = key
+                        break
+
+                if not disk_key:
+                    return "Error: No primary disk found in VM configuration"
+
+                # 发送磁盘扩容请求
+                data = {
+                    "disk": disk_key,
+                    "size": storage_size
+                }
+                result = await self.proxmox_client.put(f"/nodes/{node}/qemu/{vmid}/resize", data)
+
+                return f"VM {vmid} storage ({disk_key}) resized to {storage_size} successfully. Task: {result}"
+            except Exception as e:
+                return f"Failed to get VM configuration or resize disk: {e}"
+
+        except Exception as e:
+            return f"Failed to update VM {vmid} storage: {e}"
+
+
 
     async def run(self):
         """运行服务器"""
