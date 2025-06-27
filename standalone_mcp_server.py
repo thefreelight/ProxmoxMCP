@@ -423,6 +423,28 @@ class StandaloneMCPServer:
                         "required": ["node", "vmid", "storage_size"]
                     }
                 ),
+                Tool(
+                    name="execute_vm_command",
+                    description="Execute commands in a VM via QEMU guest agent",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "node": {
+                                "type": "string",
+                                "description": "Host node name (e.g. 'pve')"
+                            },
+                            "vmid": {
+                                "type": "string",
+                                "description": "VM ID number (e.g. '102')"
+                            },
+                            "command": {
+                                "type": "string",
+                                "description": "Shell command to run (e.g. 'df -h')"
+                            }
+                        },
+                        "required": ["node", "vmid", "command"]
+                    }
+                ),
 
             ]
 
@@ -452,6 +474,8 @@ class StandaloneMCPServer:
                     result = await self.update_vm_cpu(arguments.get("node"), arguments.get("vmid"), arguments.get("cores"))
                 elif name == "update_vm_storage":
                     result = await self.update_vm_storage(arguments.get("node"), arguments.get("vmid"), arguments.get("storage_size"))
+                elif name == "execute_vm_command":
+                    result = await self.execute_vm_command(arguments.get("node"), arguments.get("vmid"), arguments.get("command"))
                 else:
                     result = f"Unknown tool: {name}"
 
@@ -654,7 +678,57 @@ class StandaloneMCPServer:
         except Exception as e:
             return f"Failed to update VM {vmid} storage: {e}"
 
+    async def execute_vm_command(self, node: str, vmid: str, command: str) -> str:
+        """在VM中执行命令通过QEMU guest agent"""
+        try:
+            if not node or not vmid or not command:
+                return "Error: node, vmid, and command are all required"
 
+            # 首先检查VM状态
+            vm_status = await self.proxmox_client.get(f"/nodes/{node}/qemu/{vmid}/status/current")
+            if vm_status.get("status") != "running":
+                return f"Error: VM {vmid} is not running (status: {vm_status.get('status', 'unknown')})"
+
+            # 使用QEMU guest agent执行命令
+            data = {"command": command}
+
+            # 发送命令执行请求
+            exec_result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/agent/exec", data)
+
+            if "pid" not in exec_result:
+                return f"Error: Failed to start command execution: {exec_result}"
+
+            pid = exec_result["pid"]
+
+            # 等待命令完成并获取结果
+            import asyncio
+            for attempt in range(30):  # 最多等待30秒
+                try:
+                    status_result = await self.proxmox_client.get(f"/nodes/{node}/qemu/{vmid}/agent/exec-status?pid={pid}")
+
+                    if status_result.get("exited"):
+                        exit_code = status_result.get("exitcode", 0)
+                        stdout = status_result.get("out-data", "")
+                        stderr = status_result.get("err-data", "")
+
+                        result_text = f"Command '{command}' executed on VM {vmid}:\nExit Code: {exit_code}"
+                        if stdout:
+                            result_text += f"\nOutput:\n{stdout}"
+                        if stderr:
+                            result_text += f"\nError:\n{stderr}"
+
+                        return result_text
+
+                    await asyncio.sleep(1)
+                except Exception as e:
+                    self.logger.debug(f"Attempt {attempt + 1} failed: {e}")
+                    await asyncio.sleep(1)
+                    continue
+
+            return f"Warning: Command may still be running. PID: {pid}"
+
+        except Exception as e:
+            return f"Failed to execute command on VM {vmid}: {e}"
 
     async def run(self):
         """运行服务器"""
