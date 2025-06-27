@@ -434,6 +434,32 @@ class StandaloneMCPServer:
                     }
                 ),
                 Tool(
+                    name="update_vm_network",
+                    description="Update VM network configuration (IP address)",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "node": {
+                                "type": "string",
+                                "description": "Node name where the VM is located"
+                            },
+                            "vmid": {
+                                "type": "string",
+                                "description": "VM ID to update"
+                            },
+                            "ip": {
+                                "type": "string",
+                                "description": "IP address with CIDR (e.g., '192.168.0.106/24')"
+                            },
+                            "gateway": {
+                                "type": "string",
+                                "description": "Gateway IP address (e.g., '192.168.0.1')"
+                            }
+                        },
+                        "required": ["node", "vmid", "ip"]
+                    }
+                ),
+                Tool(
                     name="execute_vm_command",
                     description="Execute commands in a VM via QEMU guest agent",
                     inputSchema={
@@ -486,6 +512,8 @@ class StandaloneMCPServer:
                     result = await self.update_vm_cpu(arguments.get("node"), arguments.get("vmid"), arguments.get("cores"))
                 elif name == "update_vm_storage":
                     result = await self.update_vm_storage(arguments.get("node"), arguments.get("vmid"), arguments.get("storage_size"))
+                elif name == "update_vm_network":
+                    result = await self.update_vm_network(arguments.get("node"), arguments.get("vmid"), arguments.get("ip"), arguments.get("gateway", "192.168.0.1"))
                 elif name == "execute_vm_command":
                     result = await self.execute_vm_command(arguments.get("node"), arguments.get("vmid"), arguments.get("command"))
                 else:
@@ -689,6 +717,34 @@ class StandaloneMCPServer:
 
         except Exception as e:
             return f"Failed to update VM {vmid} storage: {e}"
+
+    async def update_vm_network(self, node: str, vmid: str, ip: str, gateway: str = "192.168.0.1") -> str:
+        """更新虚拟机网络配置"""
+        try:
+            if not node or not vmid or not ip:
+                return "Error: node, vmid, and ip are all required"
+
+            # 验证VM ID
+            try:
+                int(vmid)
+            except ValueError:
+                return "Error: VM ID must be a valid number"
+
+            # 验证IP格式
+            if "/" not in ip:
+                return "Error: IP must include CIDR notation (e.g., '192.168.0.90/24')"
+
+            # 准备网络配置参数
+            data = {
+                "ipconfig0": f"ip={ip},gw={gateway}"
+            }
+
+            # 发送配置更新请求
+            result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/config", data)
+
+            return f"VM {vmid} network updated to IP {ip} with gateway {gateway} successfully. You need to restart the VM for changes to take effect. Task: {result}"
+        except Exception as e:
+            return f"Failed to update VM {vmid} network: {e}"
 
     async def execute_vm_command(self, node: str, vmid: str, command: str) -> str:
         """在VM中执行命令通过QEMU guest agent"""
