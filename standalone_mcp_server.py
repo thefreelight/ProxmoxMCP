@@ -434,29 +434,34 @@ class StandaloneMCPServer:
                     }
                 ),
                 Tool(
-                    name="update_vm_network",
-                    description="Update VM network configuration (IP address)",
+                    name="clone_vm",
+                    description="Clone a VM from template or existing VM",
                     inputSchema={
                         "type": "object",
                         "properties": {
                             "node": {
                                 "type": "string",
-                                "description": "Node name where the VM is located"
+                                "description": "Node name where to create the VM"
                             },
-                            "vmid": {
+                            "source_vmid": {
                                 "type": "string",
-                                "description": "VM ID to update"
+                                "description": "Source VM ID to clone from (template)"
                             },
-                            "ip": {
+                            "new_vmid": {
                                 "type": "string",
-                                "description": "IP address with CIDR (e.g., '192.168.0.106/24')"
+                                "description": "New VM ID for the cloned VM"
                             },
-                            "gateway": {
+                            "name": {
                                 "type": "string",
-                                "description": "Gateway IP address (e.g., '192.168.0.1')"
+                                "description": "Name for the new VM"
+                            },
+                            "full_clone": {
+                                "type": "boolean",
+                                "description": "Whether to create a full clone (default: true)",
+                                "default": True
                             }
                         },
-                        "required": ["node", "vmid", "ip"]
+                        "required": ["node", "source_vmid", "new_vmid", "name"]
                     }
                 ),
                 Tool(
@@ -512,8 +517,14 @@ class StandaloneMCPServer:
                     result = await self.update_vm_cpu(arguments.get("node"), arguments.get("vmid"), arguments.get("cores"))
                 elif name == "update_vm_storage":
                     result = await self.update_vm_storage(arguments.get("node"), arguments.get("vmid"), arguments.get("storage_size"))
-                elif name == "update_vm_network":
-                    result = await self.update_vm_network(arguments.get("node"), arguments.get("vmid"), arguments.get("ip"), arguments.get("gateway", "192.168.0.1"))
+                elif name == "clone_vm":
+                    result = await self.clone_vm(
+                        arguments.get("node"),
+                        arguments.get("source_vmid"),
+                        arguments.get("new_vmid"),
+                        arguments.get("name"),
+                        arguments.get("full_clone", True)
+                    )
                 elif name == "execute_vm_command":
                     result = await self.execute_vm_command(arguments.get("node"), arguments.get("vmid"), arguments.get("command"))
                 else:
@@ -718,34 +729,6 @@ class StandaloneMCPServer:
         except Exception as e:
             return f"Failed to update VM {vmid} storage: {e}"
 
-    async def update_vm_network(self, node: str, vmid: str, ip: str, gateway: str = "192.168.0.1") -> str:
-        """更新虚拟机网络配置"""
-        try:
-            if not node or not vmid or not ip:
-                return "Error: node, vmid, and ip are all required"
-
-            # 验证VM ID
-            try:
-                int(vmid)
-            except ValueError:
-                return "Error: VM ID must be a valid number"
-
-            # 验证IP格式
-            if "/" not in ip:
-                return "Error: IP must include CIDR notation (e.g., '192.168.0.90/24')"
-
-            # 准备网络配置参数
-            data = {
-                "ipconfig0": f"ip={ip},gw={gateway}"
-            }
-
-            # 发送配置更新请求
-            result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/config", data)
-
-            return f"VM {vmid} network updated to IP {ip} with gateway {gateway} successfully. You need to restart the VM for changes to take effect. Task: {result}"
-        except Exception as e:
-            return f"Failed to update VM {vmid} network: {e}"
-
     async def execute_vm_command(self, node: str, vmid: str, command: str) -> str:
         """在VM中执行命令通过QEMU guest agent"""
         try:
@@ -810,6 +793,35 @@ class StandaloneMCPServer:
 
         except Exception as e:
             return f"Failed to execute command on VM {vmid}: {e}"
+
+    async def clone_vm(self, node: str, source_vmid: str, new_vmid: str, name: str, full_clone: bool = True) -> str:
+        """从模板或现有VM克隆新VM"""
+        try:
+            if not node or not source_vmid or not new_vmid or not name:
+                return "Error: node, source_vmid, new_vmid, and name are all required"
+
+            # 验证VM ID
+            try:
+                int(source_vmid)  # 验证源VM ID是数字
+                new_id = int(new_vmid)
+                if new_id < 100 or new_id > 999999:
+                    return "Error: New VM ID must be between 100 and 999999"
+            except ValueError:
+                return "Error: VM IDs must be valid numbers"
+
+            # 准备克隆参数
+            data = {
+                "newid": new_vmid,
+                "name": name,
+                "full": "1" if full_clone else "0"
+            }
+
+            # 发送克隆请求
+            result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{source_vmid}/clone", data)
+
+            return f"VM {source_vmid} cloned to new VM {new_vmid} (name: {name}) successfully. Task: {result}"
+        except Exception as e:
+            return f"Failed to clone VM {source_vmid}: {e}"
 
     async def run(self):
         """运行服务器"""
