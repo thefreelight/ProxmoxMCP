@@ -132,7 +132,12 @@ class SimpleProxmoxClient:
         form_data = aiohttp.FormData()
         if data:
             for key, value in data.items():
-                form_data.add_field(key, str(value))
+                if key == "args" and isinstance(value, list):
+                    # 对于args数组，需要特殊处理
+                    for arg in value:
+                        form_data.add_field("args", str(arg))
+                else:
+                    form_data.add_field(key, str(value))
 
         async with self.session.post(url, data=form_data) as resp:
             if resp.status == 401:
@@ -164,7 +169,12 @@ class SimpleProxmoxClient:
         form_data = aiohttp.FormData()
         if data:
             for key, value in data.items():
-                form_data.add_field(key, str(value))
+                if key == "command" and isinstance(value, list):
+                    # 对于command数组，需要特殊处理
+                    for cmd in value:
+                        form_data.add_field("command", str(cmd))
+                else:
+                    form_data.add_field(key, str(value))
 
         async with self.session.put(url, data=form_data) as resp:
             if resp.status == 401:
@@ -214,7 +224,7 @@ class StandaloneMCPServer:
     def setup_logging(self, config: LoggingConfig):
         """设置日志"""
         logging.basicConfig(
-            level=getattr(logging, config.level.upper()),
+            level=logging.DEBUG,  # 强制使用DEBUG级别
             format=config.format,
             filename=config.file
         )
@@ -243,7 +253,7 @@ class StandaloneMCPServer:
 
         # 定义工具处理函数
         async def handle_list_tools() -> List[Tool]:
-            return [
+            tools = [
                 Tool(
                     name="get_cluster_status",
                     description="Get overall cluster status and resource summary",
@@ -447,6 +457,8 @@ class StandaloneMCPServer:
                 ),
 
             ]
+            self.logger.info(f"Registered {len(tools)} tools: {[tool.name for tool in tools]}")
+            return tools
 
         async def handle_call_tool(name: str, arguments: dict) -> List[TextContent]:
             try:
@@ -690,10 +702,23 @@ class StandaloneMCPServer:
                 return f"Error: VM {vmid} is not running (status: {vm_status.get('status', 'unknown')})"
 
             # 使用QEMU guest agent执行命令
-            data = {"command": command}
+            # 按照Proxmox 8+的新格式，使用数组格式传递命令
+            # 对于复杂命令，使用 sh -c 来执行
+            data = {
+                "command": ["sh", "-c", command]
+            }
 
             # 发送命令执行请求
-            exec_result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/agent/exec", data)
+            self.logger.debug(f"Sending command to guest agent: {data}")
+            print(f"DEBUG: Sending command to guest agent: {data}")  # 强制输出到控制台
+            try:
+                exec_result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/agent/exec", data)
+                self.logger.debug(f"Guest agent exec result: {exec_result}")
+                print(f"DEBUG: Guest agent exec result: {exec_result}")  # 强制输出到控制台
+            except Exception as e:
+                self.logger.error(f"Failed to execute command via guest agent: {e}")
+                print(f"DEBUG: Exception: {e}")  # 强制输出到控制台
+                return f"Failed to execute command via guest agent: {e}"
 
             if "pid" not in exec_result:
                 return f"Error: Failed to start command execution: {exec_result}"
