@@ -376,6 +376,28 @@ class StandaloneMCPServer:
                     }
                 ),
                 Tool(
+                    name="update_vm_storage",
+                    description="Update VM storage disk size (resize disk)",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "node": {
+                                "type": "string",
+                                "description": "Node name where the VM is located"
+                            },
+                            "vmid": {
+                                "type": "string",
+                                "description": "VM ID to update"
+                            },
+                            "storage_size": {
+                                "type": "string",
+                                "description": "New disk size (e.g., '20G', '50G', '100G')"
+                            }
+                        },
+                        "required": ["node", "vmid", "storage_size"]
+                    }
+                ),
+                Tool(
                     name="clone_vm",
                     description="Clone a VM from template or existing VM",
                     inputSchema={
@@ -631,6 +653,8 @@ class StandaloneMCPServer:
                     result = await self.update_vm_memory(arguments.get("node"), arguments.get("vmid"), arguments.get("memory"))
                 elif name == "update_vm_cpu":
                     result = await self.update_vm_cpu(arguments.get("node"), arguments.get("vmid"), arguments.get("cores"))
+                elif name == "update_vm_storage":
+                    result = await self.update_vm_storage(arguments.get("node"), arguments.get("vmid"), arguments.get("storage_size"))
                 elif name == "clone_vm":
                     result = await self.clone_vm(
                         arguments.get("node"),
@@ -855,6 +879,49 @@ class StandaloneMCPServer:
             return f"VM {vmid} CPU updated to {cores} cores successfully. You need to restart the VM for changes to take effect. Task: {result}"
         except Exception as e:
             return f"Failed to update VM {vmid} CPU: {e}"
+
+    async def update_vm_storage(self, node: str, vmid: str, storage_size: str) -> str:
+        """更新虚拟机存储大小"""
+        try:
+            if not node or not vmid or not storage_size:
+                return "Error: node, vmid, and storage_size are all required"
+
+            # 验证VM ID
+            try:
+                int(vmid)
+            except ValueError:
+                return "Error: VM ID must be a valid number"
+
+            # 验证存储大小格式
+            if not storage_size.endswith(('G', 'M', 'T')):
+                return "Error: Storage size must end with G, M, or T (e.g., '20G', '1024M', '1T')"
+
+            # 检查VM状态 - 必须停止才能调整存储
+            vm_status = await self.proxmox_client.get(f"/nodes/{node}/qemu/{vmid}/status/current")
+            if vm_status.get("status") != "stopped":
+                return f"Error: VM {vmid} must be stopped before resizing storage. Current status: {vm_status.get('status', 'unknown')}"
+
+            # 获取当前VM配置以检查当前存储大小
+            vm_config = await self.proxmox_client.get(f"/nodes/{node}/qemu/{vmid}/config")
+            current_disk = vm_config.get('scsi0', '')
+
+            # 提取当前大小
+            old_size = "unknown"
+            if 'size=' in current_disk:
+                old_size = current_disk.split('size=')[1].split(',')[0]
+
+            # 调整存储大小 - 使用POST方法
+            resize_url = f"/nodes/{node}/qemu/{vmid}/resize"
+            data = {
+                "disk": "scsi0",
+                "size": storage_size
+            }
+
+            result = await self.proxmox_client.post(resize_url, data)
+
+            return f"VM {vmid} storage resized successfully from {old_size} to {storage_size}. Task: {result}"
+        except Exception as e:
+            return f"Failed to update VM {vmid} storage: {e}"
 
     async def clone_vm(self, node: str, source_vmid: str, new_vmid: str, name: str, full_clone: bool = True) -> str:
         """从模板或现有VM克隆新VM"""
