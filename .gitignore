@@ -63,3 +63,17 @@ proxmox-config/config.json
 
 # Augment-specific virtual environment
 .venv_new/
+
+# IT Infrastructure Documentation (sensitive/internal)
+IT_Infrastructure_Design.md
+Complete_VM_Infrastructure_List.md
+Deployment_Summary_Report.md
+Deployment_Guide.md
+VM_Renaming_Guide.md
+Professional_Infrastructure_Summary.md
+
+# Deployment and configuration scripts (may contain sensitive info)
+scripts/rename-vms.sh
+scripts/deploy-all.sh
+scripts/mcp-rename-vms.py
+scripts/professional-rename-map.json

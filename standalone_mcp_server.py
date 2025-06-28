@@ -602,6 +602,49 @@ class StandaloneMCPServer:
                         },
                         "required": ["node", "vmid"]
                     }
+                ),
+                Tool(
+                    name="rename_vm",
+                    description="Rename a virtual machine to professional naming convention",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "node": {
+                                "type": "string",
+                                "description": "Node name where the VM is located"
+                            },
+                            "vmid": {
+                                "type": "string",
+                                "description": "VM ID to rename"
+                            },
+                            "new_name": {
+                                "type": "string",
+                                "description": "New professional name for the VM (e.g., 'infra-identity-01', 'k8s-master-01')"
+                            }
+                        },
+                        "required": ["node", "vmid", "new_name"]
+                    }
+                ),
+                Tool(
+                    name="batch_rename_vms",
+                    description="Batch rename multiple VMs to professional naming convention",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "node": {
+                                "type": "string",
+                                "description": "Node name where the VMs are located"
+                            },
+                            "rename_map": {
+                                "type": "object",
+                                "description": "Mapping of VM IDs to new names (e.g., {'101': 'infra-identity-01', '102': 'infra-vpn-01'})",
+                                "additionalProperties": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "required": ["node", "rename_map"]
+                    }
                 )
             ]
 
@@ -689,6 +732,17 @@ class StandaloneMCPServer:
                     result = await self.enable_guest_agent(
                         arguments.get("node"),
                         arguments.get("vmid")
+                    )
+                elif name == "rename_vm":
+                    result = await self.rename_vm(
+                        arguments.get("node"),
+                        arguments.get("vmid"),
+                        arguments.get("new_name")
+                    )
+                elif name == "batch_rename_vms":
+                    result = await self.batch_rename_vms(
+                        arguments.get("node"),
+                        arguments.get("rename_map")
                     )
                 else:
                     result = f"Unknown tool: {name}"
@@ -1407,6 +1461,128 @@ class StandaloneMCPServer:
 
         except Exception as e:
             return f"❌ Failed to enable guest agent: {e}"
+
+    async def rename_vm(self, node: str, vmid: str, new_name: str) -> str:
+        """重命名虚拟机为专业命名规范"""
+        try:
+            if not node or not vmid or not new_name:
+                return "Error: node, vmid, and new_name are all required"
+
+            # 验证新名称格式
+            if not self._validate_professional_name(new_name):
+                return f"Error: '{new_name}' does not follow professional naming convention. Use format: [layer]-[function]-[number] (e.g., 'infra-identity-01', 'k8s-master-01')"
+
+            # 检查VM是否存在
+            try:
+                vm_status = await self.proxmox_client.get(f"/nodes/{node}/qemu/{vmid}/status/current")
+                current_name = vm_status.get("name", "unknown")
+            except Exception:
+                return f"Error: VM {vmid} not found on node {node}"
+
+            # 检查新名称是否已被使用
+            if await self._is_vm_name_taken(node, new_name, vmid):
+                return f"Error: VM name '{new_name}' is already in use"
+
+            # 执行重命名
+            data = {"name": new_name}
+            result = await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/config", data)
+
+            return f"✅ VM {vmid} successfully renamed from '{current_name}' to '{new_name}'. Task: {result}"
+
+        except Exception as e:
+            return f"❌ Failed to rename VM {vmid}: {e}"
+
+    async def batch_rename_vms(self, node: str, rename_map: dict) -> str:
+        """批量重命名多个VM为专业命名规范"""
+        try:
+            if not node or not rename_map:
+                return "Error: node and rename_map are required"
+
+            if not isinstance(rename_map, dict):
+                return "Error: rename_map must be a dictionary mapping VM IDs to new names"
+
+            results = []
+            success_count = 0
+            error_count = 0
+
+            results.append("🔄 Starting batch VM renaming...")
+            results.append(f"📋 Processing {len(rename_map)} VMs on node '{node}'")
+            results.append("=" * 50)
+
+            for vmid, new_name in rename_map.items():
+                try:
+                    # 验证新名称格式
+                    if not self._validate_professional_name(new_name):
+                        results.append(f"❌ VM {vmid}: Invalid name format '{new_name}'")
+                        error_count += 1
+                        continue
+
+                    # 检查VM是否存在
+                    try:
+                        vm_status = await self.proxmox_client.get(f"/nodes/{node}/qemu/{vmid}/status/current")
+                        current_name = vm_status.get("name", "unknown")
+                    except Exception:
+                        results.append(f"❌ VM {vmid}: Not found on node {node}")
+                        error_count += 1
+                        continue
+
+                    # 检查新名称是否已被使用
+                    if await self._is_vm_name_taken(node, new_name, vmid):
+                        results.append(f"❌ VM {vmid}: Name '{new_name}' already in use")
+                        error_count += 1
+                        continue
+
+                    # 执行重命名
+                    data = {"name": new_name}
+                    await self.proxmox_client.post(f"/nodes/{node}/qemu/{vmid}/config", data)
+
+                    results.append(f"✅ VM {vmid}: '{current_name}' → '{new_name}'")
+                    success_count += 1
+
+                except Exception as e:
+                    results.append(f"❌ VM {vmid}: Failed to rename - {e}")
+                    error_count += 1
+
+            results.append("=" * 50)
+            results.append(f"🎉 Batch rename completed!")
+            results.append(f"✅ Successful: {success_count}")
+            results.append(f"❌ Failed: {error_count}")
+            results.append(f"📊 Total: {len(rename_map)}")
+
+            if success_count > 0:
+                results.append("")
+                results.append("🔄 Renamed VMs:")
+                for vmid, new_name in rename_map.items():
+                    if vmid not in [line.split()[1].rstrip(':') for line in results if line.startswith("❌")]:
+                        results.append(f"  • VM {vmid} → {new_name}")
+
+            return "\n".join(results)
+
+        except Exception as e:
+            return f"❌ Failed to batch rename VMs: {e}"
+
+    def _validate_professional_name(self, name: str) -> bool:
+        """验证专业命名规范格式"""
+        import re
+
+        # 专业命名格式: [layer]-[function]-[number]
+        # layer: infra, k8s, dev, prod
+        # function: 功能描述 (字母和连字符)
+        # number: 两位数字 (01, 02, 03...)
+
+        pattern = r'^(infra|k8s|dev|prod)-[a-z]+(-[a-z]+)*-\d{2}$'
+        return bool(re.match(pattern, name))
+
+    async def _is_vm_name_taken(self, node: str, name: str, exclude_vmid: str = None) -> bool:
+        """检查VM名称是否已被使用"""
+        try:
+            vms = await self.proxmox_client.get(f"/nodes/{node}/qemu")
+            for vm in vms:
+                if vm.get("name") == name and str(vm.get("vmid")) != str(exclude_vmid):
+                    return True
+            return False
+        except Exception:
+            return False
 
     async def run(self):
         """运行服务器"""
