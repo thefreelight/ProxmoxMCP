@@ -73,7 +73,15 @@ VM_Renaming_Guide.md
 Professional_Infrastructure_Summary.md
 
 # Deployment and configuration scripts (may contain sensitive info)
-scripts/rename-vms.sh
 scripts/deploy-all.sh
 scripts/mcp-rename-vms.py
 scripts/professional-rename-map.json
+
+# Log files
+*.log
+proxmox_mcp.log
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
